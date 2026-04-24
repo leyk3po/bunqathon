@@ -20,3 +20,4 @@ __pycache__/
 scripts/tmux-claude.sh
 scripts/claude-handoff.sh
 apps/api/uploads/
+.playwright-mcp/
