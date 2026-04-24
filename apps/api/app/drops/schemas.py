@@ -8,6 +8,21 @@ from app.drops.models import DropState, EventSource, PaymentStatus
 
 
 class DropCreate(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "title": "Midnight Market Tote",
+                "description": "Student-made tote bag from the design booth.",
+                "pitch": "handmade tote for our student design club, only five left",
+                "price_cents": 2450,
+                "currency": "EUR",
+                "inventory": 5,
+                "media_url": "/media/demo-image.jpg",
+                "seller_id": "demo-seller",
+            }
+        }
+    )
+
     title: str = Field(min_length=1, max_length=200)
     description: str = ""
     pitch: str | None = None
@@ -20,6 +35,17 @@ class DropCreate(BaseModel):
 
 
 class DropUpdate(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "title": "Midnight Market Tote",
+                "description": "Updated copy for the preview screen.",
+                "price_cents": 2450,
+                "inventory": 5,
+            }
+        }
+    )
+
     title: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = None
     pitch: str | None = None
@@ -77,11 +103,31 @@ class EventLogPublic(BaseModel):
 
 
 class GeneratePreviewRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "pitch": "handmade tote for our student design club, only five left",
+                "media_url": "/media/demo-image.jpg",
+            }
+        }
+    )
+
     pitch: str = Field(min_length=1, max_length=2000)
     media_url: str | None = None
 
 
 class GeneratePreviewResponse(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "title": "Midnight Handmade Tote For Our Drop",
+                "description": "handmade tote for our student design club, only five left",
+                "price_cents": 2450,
+                "currency": "EUR",
+            }
+        }
+    )
+
     title: str
     description: str
     price_cents: int

@@ -34,12 +34,17 @@ Progress:
 - [x] Persist publish/payment-related events
 
 ### Phase 3: Frontend-Unblocking Flow
-Status: Pending
+Status: In Progress
 
 Scope:
 - make upload, preview, create, publish, fetch, and SSE endpoints stable
 - document payload shapes for the frontend
 - keep the stubbed AI and bunq adapters predictable for UI integration
+
+Progress:
+- [x] Document payload shapes for the frontend
+- [x] Make SSE emit an initial snapshot
+- [ ] Lock the create -> review -> publish -> live-update flow for the frontend
 
 ### Phase 4: Integration Hardening
 Status: Pending
