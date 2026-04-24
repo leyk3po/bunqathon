@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.drops.models import DropState, PaymentStatus
+from app.drops.models import DropState, EventSource, PaymentStatus
 
 
 class DropCreate(BaseModel):
@@ -61,7 +61,19 @@ class DropDetail(DropPublic):
     pitch: str | None
     seller_id: str | None
     bunq_tab_uuid: str | None
-    payments: list[PaymentPublic] = []
+    payments: list[PaymentPublic] = Field(default_factory=list)
+
+
+class EventLogPublic(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    source: EventSource
+    event_type: str
+    external_id: str | None
+    payload: dict
+    processed_at: datetime | None
+    created_at: datetime
 
 
 class GeneratePreviewRequest(BaseModel):

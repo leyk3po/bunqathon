@@ -9,6 +9,7 @@ from app.drops.models import Drop, DropState
 from app.drops.schemas import (
     DropCreate,
     DropDetail,
+    EventLogPublic,
     DropPublic,
     DropUpdate,
     GeneratePreviewRequest,
@@ -58,6 +59,18 @@ def list_drops(
     return service.list_drops(db, state=state, seller_id=seller_id, limit=limit)
 
 
+@router.get("/{slug}/events", response_model=list[EventLogPublic])
+def list_drop_events(
+    slug: str,
+    db: Session = Depends(get_db),
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list:
+    try:
+        return service.list_events_for_drop(db, slug, limit=limit)
+    except service.DropError as exc:
+        raise _translate(exc) from exc
+
+
 @router.get("/{slug}", response_model=DropDetail)
 def get_drop(slug: str, db: Session = Depends(get_db)) -> Drop:
     try:
@@ -74,9 +87,41 @@ def update_drop(drop_id: str, payload: DropUpdate, db: Session = Depends(get_db)
         raise _translate(exc) from exc
 
 
+@router.post("/{drop_id}/review", response_model=DropDetail)
+def move_drop_to_review(drop_id: str, db: Session = Depends(get_db)) -> Drop:
+    try:
+        return service.move_drop_to_review(db, drop_id)
+    except service.DropError as exc:
+        raise _translate(exc) from exc
+
+
 @router.post("/{drop_id}/publish", response_model=DropDetail)
 def publish_drop(drop_id: str, db: Session = Depends(get_db)) -> Drop:
     try:
         return service.publish_drop(db, drop_id)
+    except service.DropError as exc:
+        raise _translate(exc) from exc
+
+
+@router.post("/{drop_id}/pause", response_model=DropDetail)
+def pause_drop(drop_id: str, db: Session = Depends(get_db)) -> Drop:
+    try:
+        return service.pause_drop(db, drop_id)
+    except service.DropError as exc:
+        raise _translate(exc) from exc
+
+
+@router.post("/{drop_id}/resume", response_model=DropDetail)
+def resume_drop(drop_id: str, db: Session = Depends(get_db)) -> Drop:
+    try:
+        return service.resume_drop(db, drop_id)
+    except service.DropError as exc:
+        raise _translate(exc) from exc
+
+
+@router.post("/{drop_id}/archive", response_model=DropDetail)
+def archive_drop(drop_id: str, db: Session = Depends(get_db)) -> Drop:
+    try:
+        return service.archive_drop(db, drop_id)
     except service.DropError as exc:
         raise _translate(exc) from exc

@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -35,6 +35,13 @@ class PaymentStatus(str, enum.Enum):
     paid = "paid"
     failed = "failed"
     expired = "expired"
+
+
+class EventSource(str, enum.Enum):
+    domain = "domain"
+    webhook = "webhook"
+    payment = "payment"
+    system = "system"
 
 
 class Drop(Base):
@@ -70,6 +77,7 @@ class Drop(Base):
     payments: Mapped[list["Payment"]] = relationship(
         back_populates="drop", cascade="all, delete-orphan"
     )
+    event_logs: Mapped[list["EventLog"]] = relationship(back_populates="drop")
 
 
 class Payment(Base):
@@ -91,3 +99,30 @@ class Payment(Base):
     )
 
     drop: Mapped[Drop] = relationship(back_populates="payments")
+    event_logs: Mapped[list["EventLog"]] = relationship(back_populates="payment")
+
+
+class EventLog(Base):
+    __tablename__ = "event_logs"
+    __table_args__ = (
+        UniqueConstraint("source", "external_id", name="uq_event_logs_source_external_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    drop_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("drops.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    payment_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("payments.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    source: Mapped[EventSource] = mapped_column(
+        Enum(EventSource, name="event_source"), default=EventSource.domain, index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(64), index=True)
+    external_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    drop: Mapped[Drop | None] = relationship(back_populates="event_logs")
+    payment: Mapped[Payment | None] = relationship(back_populates="event_logs")

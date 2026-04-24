@@ -152,6 +152,10 @@ Write-Step "Fetching created drop"
 $fetched = Invoke-Api -Method GET -Path "/drops/$($drop.slug)"
 $fetched | ConvertTo-Json -Depth 10
 
+Write-Step "Moving drop to review"
+$reviewed = Invoke-Api -Method POST -Path "/drops/$($drop.id)/review"
+$reviewed | ConvertTo-Json -Depth 10
+
 Write-Step "Publishing drop"
 $published = Invoke-Api -Method POST -Path "/drops/$($drop.id)/publish"
 $published | ConvertTo-Json -Depth 10
@@ -181,6 +185,10 @@ Write-Step "Fetching final drop state"
 $finalDrop = Invoke-Api -Method GET -Path "/drops/$($drop.slug)"
 $finalDrop | ConvertTo-Json -Depth 10
 
+Write-Step "Fetching persisted drop events"
+$dropEvents = Invoke-Api -Method GET -Path "/drops/$($drop.slug)/events"
+$dropEvents | ConvertTo-Json -Depth 10
+
 Write-Step "Summary"
 [pscustomobject]@{
     id = $drop.id
@@ -190,4 +198,5 @@ Write-Step "Summary"
     sold_count = $finalDrop.sold_count
     bunq_tab_url = $finalDrop.bunq_tab_url
     webhook_reference_used = $resolvedWebhookReference
+    event_count = @($dropEvents).Count
 } | ConvertTo-Json -Depth 10

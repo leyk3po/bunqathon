@@ -19,6 +19,8 @@ def bunq_callback(payload: BunqPaymentEvent, db: Session = Depends(get_db)) -> B
             reference=payload.reference,
             new_status=payload.status,
             amount_cents=payload.amount_cents,
+            webhook_event_id=payload.event_id,
+            webhook_payload=payload.model_dump(),
         )
     except drops_service.DropNotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc

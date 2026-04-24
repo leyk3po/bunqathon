@@ -19,7 +19,7 @@ Delivered:
 - `publish` remains the explicit lifecycle action endpoint
 
 ### Phase 2: Lifecycle and Persistence
-Status: In Progress
+Status: Completed
 
 Scope:
 - formalize allowed drop state transitions
@@ -29,9 +29,9 @@ Scope:
 
 Progress:
 - [x] Add Alembic migrations
-- [ ] Formalize allowed drop state transitions
-- [ ] Introduce an event log table
-- [ ] Persist publish/payment-related events
+- [x] Formalize allowed drop state transitions
+- [x] Introduce an event log table
+- [x] Persist publish/payment-related events
 
 ### Phase 3: Frontend-Unblocking Flow
 Status: Pending
