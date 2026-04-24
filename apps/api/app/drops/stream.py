@@ -19,15 +19,15 @@ HEARTBEAT_SECONDS = 15
 
 @router.get("/drops/{slug}/stream")
 async def stream_drop(slug: str, request: Request, db: Session = Depends(get_db)) -> StreamingResponse:
-    exists = db.scalar(select(Drop.id).where(Drop.slug == slug))
-    if exists is None:
+    drop = db.scalar(select(Drop).where(Drop.slug == slug))
+    if drop is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "drop not found")
 
     queue = events.subscribe(slug)
 
     async def event_source():
         try:
-            yield _format_event("ready", {"slug": slug})
+            yield _format_event("snapshot", _snapshot_payload(drop))
             while True:
                 if await request.is_disconnected():
                     break
@@ -50,3 +50,19 @@ async def stream_drop(slug: str, request: Request, db: Session = Depends(get_db)
 
 def _format_event(event_type: str, data: dict) -> str:
     return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+
+
+def _snapshot_payload(drop: Drop) -> dict:
+    return {
+        "type": "snapshot",
+        "id": drop.id,
+        "slug": drop.slug,
+        "title": drop.title,
+        "state": drop.state.value,
+        "inventory": drop.inventory,
+        "sold_count": drop.sold_count,
+        "price_cents": drop.price_cents,
+        "currency": drop.currency,
+        "bunq_tab_url": drop.bunq_tab_url,
+        "media_url": drop.media_url,
+    }
