@@ -27,7 +27,6 @@ class DropUpdate(BaseModel):
     currency: str | None = Field(default=None, min_length=3, max_length=3)
     inventory: int | None = Field(default=None, ge=0)
     media_url: str | None = None
-    state: DropState | None = None
 
 
 class PaymentPublic(BaseModel):

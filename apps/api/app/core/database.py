@@ -24,11 +24,17 @@ class Base(DeclarativeBase):
     pass
 
 
-def init_db() -> None:
+def get_database_url() -> str:
+    return _database_url
+
+
+def register_models() -> None:
     # Import domain models so tables register on Base.metadata.
     from app.drops import models as _drops_models  # noqa: F401
 
-    Base.metadata.create_all(bind=engine)
+
+def init_db() -> None:
+    register_models()
 
 
 def get_db() -> Iterator[Session]:
