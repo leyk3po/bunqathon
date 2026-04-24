@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.db import database_status
+from app.core.database import database_status
 
 router = APIRouter(tags=["health"])
 

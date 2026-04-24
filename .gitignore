@@ -13,3 +13,10 @@ __pycache__/
 .env
 .env.local
 .DS_Store
+*.db
+*.sqlite
+*.sqlite3
+.claude-panes/
+scripts/tmux-claude.sh
+scripts/claude-handoff.sh
+apps/api/uploads/

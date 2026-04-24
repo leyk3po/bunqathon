@@ -1,0 +1,82 @@
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.drops import service
+from app.drops.models import Drop, DropState
+from app.drops.schemas import (
+    DropCreate,
+    DropDetail,
+    DropPublic,
+    DropUpdate,
+    GeneratePreviewRequest,
+    GeneratePreviewResponse,
+)
+from app.integrations import ai
+
+router = APIRouter(prefix="/drops", tags=["drops"])
+
+
+def _translate(exc: service.DropError) -> HTTPException:
+    if isinstance(exc, service.DropNotFound):
+        return HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
+    if isinstance(exc, service.DropConflict):
+        return HTTPException(status.HTTP_409_CONFLICT, str(exc))
+    if isinstance(exc, service.DropInvalid):
+        return HTTPException(status.HTTP_400_BAD_REQUEST, str(exc))
+    return HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc))
+
+
+@router.post("/generate-preview", response_model=GeneratePreviewResponse)
+def generate_preview(payload: GeneratePreviewRequest) -> GeneratePreviewResponse:
+    result = ai.generate_drop_copy(payload.pitch, payload.media_url)
+    return GeneratePreviewResponse(
+        title=result.title,
+        description=result.description,
+        price_cents=result.price_cents,
+        currency=result.currency,
+    )
+
+
+@router.post("", response_model=DropDetail, status_code=status.HTTP_201_CREATED)
+def create_drop(payload: DropCreate, db: Session = Depends(get_db)) -> Drop:
+    try:
+        return service.create_drop(db, payload)
+    except service.DropError as exc:
+        raise _translate(exc) from exc
+
+
+@router.get("", response_model=list[DropPublic])
+def list_drops(
+    db: Session = Depends(get_db),
+    state: DropState | None = Query(default=None),
+    seller_id: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[Drop]:
+    return service.list_drops(db, state=state, seller_id=seller_id, limit=limit)
+
+
+@router.get("/{slug}", response_model=DropDetail)
+def get_drop(slug: str, db: Session = Depends(get_db)) -> Drop:
+    try:
+        return service.get_by_slug(db, slug)
+    except service.DropError as exc:
+        raise _translate(exc) from exc
+
+
+@router.patch("/{drop_id}", response_model=DropDetail)
+def update_drop(drop_id: str, payload: DropUpdate, db: Session = Depends(get_db)) -> Drop:
+    try:
+        return service.update_drop(db, drop_id, payload)
+    except service.DropError as exc:
+        raise _translate(exc) from exc
+
+
+@router.post("/{drop_id}/publish", response_model=DropDetail)
+def publish_drop(drop_id: str, db: Session = Depends(get_db)) -> Drop:
+    try:
+        return service.publish_drop(db, drop_id)
+    except service.DropError as exc:
+        raise _translate(exc) from exc
