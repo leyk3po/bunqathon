@@ -232,6 +232,29 @@
   - useful in real physical contexts
 
   It feels like a product, not just a tech demo.
+  
+  flowchart TB
+      Seller[Seller on React Web or Capacitor App]
+      Buyer[Buyer on Public Web Page]
+
+      Seller --> Frontend[React App]
+      Buyer --> Frontend
+
+      Frontend --> API[FastAPI App\nsingle deployed backend]
+
+      API --> DB[(PostgreSQL)]
+      API --> S3[(S3 for uploads/assets)]
+      API --> Bunq[bunq API]
+      API --> AI[Multimodal AI API]
+
+      Bunq --> Webhook[bunq Webhook Callback]
+      Webhook --> API
+      
+      
+  - Amplify Hosting for the React web app
+  - Lightsail Container Service for one Dockerized FastAPI app
+  - Lightsail PostgreSQL or RDS PostgreSQL for the database
+  - S3 for media
 
   ———
 
