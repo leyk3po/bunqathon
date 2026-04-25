@@ -34,6 +34,9 @@ class Settings:
     )
     bunq_timeout_seconds: float = float(os.getenv("BUNQ_TIMEOUT_SECONDS", "20"))
     bunq_redirect_base_url: str = os.getenv("BUNQ_REDIRECT_BASE_URL", "").strip()
+    s3_bucket_name: str = os.getenv("S3_BUCKET_NAME", "")
+    s3_region: str = os.getenv("AWS_DEFAULT_REGION", os.getenv("AWS_REGION", "us-east-1"))
+    s3_media_prefix: str = os.getenv("S3_MEDIA_PREFIX", "uploads")
     cors_origins: list[str] = field(
         default_factory=lambda: [
             origin.strip()
