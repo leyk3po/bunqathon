@@ -468,19 +468,19 @@ function DashboardPage() {
       >
         <Box
           as="button"
-          w="56px" h="56px"
-          bg={DARK}
+          className="glass-card"
+          w="60px" h="60px"
           borderRadius="50%"
-          color={INK_FG}
-          border="none"
           cursor="pointer"
           display="flex"
           alignItems="center"
           justifyContent="center"
           pointerEvents="auto"
-          boxShadow="0 8px 24px rgba(0,0,0,0.28)"
-          transition="transform 180ms ease, box-shadow 180ms ease"
-          _hover={{ transform: "scale(1.08)", boxShadow: "0 12px 32px rgba(0,0,0,0.36)" }}
+          border="none"
+          color={TEXT}
+          transition="transform 200ms ease, box-shadow 200ms ease"
+          _hover={{ transform: "translateY(-3px) scale(1.06)" }}
+          _active={{ transform: "scale(0.94)", transition: "transform 80ms ease" }}
           onClick={() => setCaptureOpen(true)}
         >
           <IconCamera />

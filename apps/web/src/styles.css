@@ -21,13 +21,14 @@
   --glass-shadow:    0 2px 6px rgba(0,0,0,0.04), 0 10px 28px rgba(0,0,0,0.07);
   --glass-inset:     inset 0 1px 0 rgba(255,255,255,0.98), inset 0 -1px 0 rgba(0,0,0,0.03);
   --glass-shine:     rgba(255,255,255,0.68) 0%, rgba(255,255,255,0.18) 38%, transparent 68%;
-  --glass-spotlight: rgba(255, 255, 255, 0.14);
+  /* light mode: colored tint so spotlight is visible against white surfaces */
+  --glass-spotlight: rgba(148, 130, 230, 0.13);
   --glass-blur:      blur(22px) saturate(170%) brightness(103%);
 
-  /* Gradient orb colours — light */
-  --orb-1: rgba(198, 195, 224, 0.52);
-  --orb-2: rgba(193, 215, 222, 0.44);
-  --orb-3: rgba(222, 214, 204, 0.42);
+  /* Gradient orb colours — light (richer, more visible) */
+  --orb-1: rgba(172, 162, 220, 0.78);
+  --orb-2: rgba(158, 200, 218, 0.70);
+  --orb-3: rgba(218, 198, 178, 0.72);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -136,6 +137,7 @@ a {
   pointer-events: none;
 }
 
+
 /* ─────────────────────────────────────────────────
    Gradient background orbs
 ───────────────────────────────────────────────── */
@@ -204,10 +206,10 @@ a {
    Login page — orb colours
 ───────────────────────────────────────────────── */
 :root {
-  --lorb-1: rgba(200, 188, 248, 0.72);
-  --lorb-2: rgba(178, 220, 244, 0.60);
-  --lorb-3: rgba(248, 222, 190, 0.62);
-  --lorb-4: rgba(236, 228, 255, 0.45);
+  --lorb-1: rgba(160, 140, 248, 0.88);
+  --lorb-2: rgba(130, 196, 240, 0.82);
+  --lorb-3: rgba(248, 200, 148, 0.80);
+  --lorb-4: rgba(190, 175, 255, 0.62);
 }
 
 @media (prefers-color-scheme: dark) {
