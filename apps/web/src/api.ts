@@ -3,8 +3,12 @@
 
 const BASE = import.meta.env.VITE_API_BASE_URL || "";
 const PREFIX = import.meta.env.VITE_API_PREFIX || "/api/v1";
+const PUBLIC_APP_BASE =
+  import.meta.env.VITE_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "");
 
 export const apiUrl = (path: string) => `${BASE}${PREFIX}${path.startsWith("/") ? path : `/${path}`}`;
+export const buyerCheckoutUrl = (slug: string) =>
+  `${PUBLIC_APP_BASE}/buy/${encodeURIComponent(slug)}`;
 
 export type DropState =
   | "draft"
@@ -137,6 +141,9 @@ export const api = {
 
   publish: (id: string): Promise<DropDetail> =>
     request<DropDetail>(`/drops/${encodeURIComponent(id)}/publish`, { method: "POST" }),
+
+  mockPayment: (id: string): Promise<DropDetail> =>
+    request<DropDetail>(`/drops/${encodeURIComponent(id)}/mock-payment`, { method: "POST" }),
 
   pause: (id: string): Promise<DropDetail> =>
     request<DropDetail>(`/drops/${encodeURIComponent(id)}/pause`, { method: "POST" }),

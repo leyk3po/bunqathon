@@ -1,4 +1,4 @@
-import { Box, Flex, QrCode, Text } from "@chakra-ui/react";
+import { Box, Flex, Link, QrCode, Text } from "@chakra-ui/react";
 import { PANEL, FONT } from "../theme/tokens";
 
 function fmt(price: string) {
@@ -6,12 +6,20 @@ function fmt(price: string) {
   return `€ ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
 }
 
-export function BunqQrPanel({ url, price }: { url: string; price: string }) {
+export function BunqQrPanel({
+  url,
+  price,
+  bunqUrl,
+}: {
+  url: string;
+  price: string;
+  bunqUrl?: string | null;
+}) {
   return (
     <Flex
       bg={PANEL}
       borderRadius="10px"
-      align="center"
+      align="start"
       gap="14px"
       p="12px"
     >
@@ -38,7 +46,28 @@ export function BunqQrPanel({ url, price }: { url: string; price: string }) {
         <Text fontFamily={FONT} fontSize="20px" fontWeight="700" color="white" letterSpacing="-0.5px">
           {fmt(price)}
         </Text>
-        <Text fontFamily={FONT} fontSize="11px" color="whiteAlpha.400" mt="1px">via bunq</Text>
+        <Text fontFamily={FONT} fontSize="11px" color="whiteAlpha.400" mt="1px">
+          opens the buyer checkout
+        </Text>
+        <Text fontFamily={FONT} fontSize="10px" color="whiteAlpha.400" mt="6px" lineHeight="1.45">
+          Sandbox demo: buyer payment is mocked, seller callback behavior stays realistic.
+        </Text>
+        {bunqUrl && (
+          <Link
+            href={bunqUrl}
+            target="_blank"
+            rel="noreferrer"
+            fontFamily={FONT}
+            fontSize="10px"
+            color="white"
+            textDecoration="underline"
+            textUnderlineOffset="2px"
+            display="inline-block"
+            mt="8px"
+          >
+            View original bunq sandbox link
+          </Link>
+        )}
       </Box>
     </Flex>
   );

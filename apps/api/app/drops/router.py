@@ -113,6 +113,14 @@ def publish_drop(drop_id: str, db: Session = Depends(get_db)) -> Drop:
         raise _translate(exc) from exc
 
 
+@router.post("/{drop_id}/mock-payment", response_model=DropDetail)
+def mock_payment(drop_id: str, db: Session = Depends(get_db)) -> Drop:
+    try:
+        return service.mock_payment_for_drop(db, drop_id)
+    except service.DropError as exc:
+        raise _translate(exc) from exc
+
+
 @router.post("/{drop_id}/pause", response_model=DropDetail)
 def pause_drop(drop_id: str, db: Session = Depends(get_db)) -> Drop:
     try:

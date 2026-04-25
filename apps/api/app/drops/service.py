@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.event_log import record_event, record_event_if_new
 from app.core import events
+from app.core.config import settings
 from app.drops.models import Drop, DropState, EventLog, EventSource, Payment, PaymentStatus
 from app.drops.schemas import DropCreate, DropUpdate
 from app.integrations import bunq
@@ -242,6 +243,41 @@ def publish_drop(db: Session, drop_id: str) -> Drop:
         },
     )
     return drop
+
+
+def mock_payment_for_drop(db: Session, drop_id: str) -> Drop:
+    if not settings.bunq_sandbox:
+        raise DropConflict("mock payment is only available when BUNQ_SANDBOX=true")
+
+    drop = get_by_id(db, drop_id)
+    payment = db.scalar(
+        select(Payment)
+        .where(Payment.drop_id == drop.id, Payment.status == PaymentStatus.pending)
+        .order_by(Payment.created_at.desc())
+    )
+    if payment is None:
+        payment = db.scalar(
+            select(Payment).where(Payment.drop_id == drop.id).order_by(Payment.created_at.desc())
+        )
+    if payment is None or not payment.bunq_reference:
+        raise DropConflict("drop has no bunq payment to mock")
+
+    updated_drop, _payment = apply_payment_event(
+        db,
+        reference=payment.bunq_reference,
+        new_status=PaymentStatus.paid,
+        amount_cents=payment.amount_cents,
+        webhook_event_id=f"sandbox-mock:{payment.id}",
+        webhook_payload={
+            "source": "sandbox_mock",
+            "reference": payment.bunq_reference,
+            "amount_cents": payment.amount_cents,
+            "status": PaymentStatus.paid.value,
+            "drop_id": drop.id,
+        },
+    )
+    db.refresh(updated_drop)
+    return updated_drop
 
 
 def pause_drop(db: Session, drop_id: str) -> Drop:

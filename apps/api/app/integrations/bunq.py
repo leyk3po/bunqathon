@@ -126,6 +126,9 @@ def resolve_payment_callback(payload: dict[str, Any]) -> BunqResolvedPaymentEven
 
     client = _authenticated_client()
     account_id = _account_id(client)
+    tab_reference: str | None = None
+    amount_cents: int | None = None
+    resolved_result: dict[str, Any] = {}
 
     try:
         result = client.get(
@@ -135,20 +138,37 @@ def resolve_payment_callback(payload: dict[str, Any]) -> BunqResolvedPaymentEven
         raise BunqUpstreamError(f"bunq callback resolution failed: {exc}") from exc
 
     result_object = _extract_first_nested_object(result)
-    tab_id = result_object.get("bunq_me_tab_id") or result_object.get("bunqme_tab_id")
-    if tab_id in (None, ""):
-        raise BunqUpstreamError("bunq callback result did not contain bunq_me_tab_id")
+    resolved_result = result_object
+    tab_reference = _reference_from_result_object(result_object)
+    amount_cents = _amount_from_result_object(result_object)
 
-    amount_cents = _extract_amount_cents(result_object)
+    if tab_reference is None:
+        try:
+            tab = client.get(
+                f"user/{client.user_id}/monetary-account/{account_id}/bunqme-tab/{object_id}"
+            )
+        except (httpx.HTTPError, BunqClientError) as exc:
+            raise BunqUpstreamError(f"bunq callback resolution failed: {exc}") from exc
+
+        tab_object = _extract_first_nested_object(tab)
+        resolved_result = tab_object
+        tab_reference = _reference_from_tab_object(tab_object)
+        amount_cents = _amount_from_tab_object(tab_object)
+
+    if tab_reference is None:
+        raise BunqUpstreamError(
+            "bunq callback result could not be mapped to a bunq.me tab reference"
+        )
+
     event_id = f"{category}:{object_id}"
     resolved_payload = {
         "notification": notification,
-        "resolved_result": result_object,
-        "resolved_reference": f"bunqme-tab:{tab_id}",
+        "resolved_result": resolved_result,
+        "resolved_reference": tab_reference,
     }
 
     return BunqResolvedPaymentEvent(
-        reference=f"bunqme-tab:{tab_id}",
+        reference=tab_reference,
         status=PaymentStatus.paid,
         amount_cents=amount_cents,
         event_id=event_id,
@@ -164,6 +184,7 @@ def _authenticated_client() -> BunqClient:
             api_key=settings.bunq_api_key,
             sandbox=settings.bunq_sandbox,
             context_file=settings.bunq_context_file,
+            permitted_ips=settings.bunq_permitted_ips,
             user_agent="flashdrop-api/1.0",
             timeout_seconds=settings.bunq_timeout_seconds,
         )
@@ -228,4 +249,67 @@ def _extract_amount_cents(result_object: dict[str, Any]) -> int | None:
             return int(round(float(str(value)) * 100))
         except ValueError:
             continue
+    return None
+
+
+def _reference_from_result_object(result_object: dict[str, Any]) -> str | None:
+    tab_id = result_object.get("bunq_me_tab_id") or result_object.get("bunqme_tab_id")
+    if tab_id not in (None, ""):
+        return f"bunqme-tab:{tab_id}"
+
+    payment = result_object.get("payment")
+    if isinstance(payment, dict):
+        merchant_reference = str(payment.get("merchant_reference") or "").strip()
+        if merchant_reference:
+            return merchant_reference
+    return None
+
+
+def _reference_from_tab_object(tab_object: dict[str, Any]) -> str | None:
+    result_inquiries = tab_object.get("result_inquiries")
+    if isinstance(result_inquiries, list):
+        for item in reversed(result_inquiries):
+            if not isinstance(item, dict):
+                continue
+            tab_id = item.get("bunq_me_tab_id") or item.get("bunqme_tab_id")
+            if tab_id not in (None, ""):
+                return f"bunqme-tab:{tab_id}"
+            payment = item.get("payment")
+            if isinstance(payment, dict):
+                merchant_reference = str(payment.get("merchant_reference") or "").strip()
+                if merchant_reference:
+                    return merchant_reference
+
+    tab_id = tab_object.get("id")
+    if tab_id not in (None, ""):
+        return f"bunqme-tab:{tab_id}"
+    return None
+
+
+def _amount_from_result_object(result_object: dict[str, Any]) -> int | None:
+    amount_cents = _extract_amount_cents(result_object)
+    if amount_cents is not None:
+        return amount_cents
+
+    payment = result_object.get("payment")
+    if isinstance(payment, dict):
+        return _extract_amount_cents({"amount": payment.get("amount")})
+    return None
+
+
+def _amount_from_tab_object(tab_object: dict[str, Any]) -> int | None:
+    result_inquiries = tab_object.get("result_inquiries")
+    if isinstance(result_inquiries, list):
+        for item in reversed(result_inquiries):
+            if not isinstance(item, dict):
+                continue
+            payment = item.get("payment")
+            if isinstance(payment, dict):
+                amount_cents = _extract_amount_cents({"amount": payment.get("amount")})
+                if amount_cents is not None:
+                    return amount_cents
+
+    entry = tab_object.get("bunqme_tab_entry")
+    if isinstance(entry, dict):
+        return _extract_amount_cents({"amount_inquired": entry.get("amount_inquired")})
     return None

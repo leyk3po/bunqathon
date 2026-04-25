@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
-import { api, eurosFromCents, type DropState } from "../api";
+import { api, buyerCheckoutUrl, eurosFromCents, type DropState } from "../api";
 import { TEXT, MUTED, FONT } from "../theme/tokens";
 import { ProductTileImage } from "./ProductTileImage";
 import { BunqQrPanel } from "./BunqQrPanel";
@@ -26,6 +26,12 @@ export type Listing = {
   bunqTabUrl?: string | null;
 };
 
+function listingStatusFromDropState(state: DropState | undefined): ListingStatus {
+  if (state === "live" || state === "partially_sold") return "live";
+  if (state === "sold_out") return "sold";
+  return "draft";
+}
+
 function fmt(price: string) {
   const n = Number(price);
   return `€ ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
@@ -49,8 +55,12 @@ export function ListingCard({
     es.addEventListener("payment", (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data as string);
-        const newStock = (data.inventory ?? listing.stock) - (data.sold_count ?? 0);
-        onUpdate({ stock: Math.max(0, newStock) });
+        const nextState = data.drop_state as DropState | undefined;
+        onUpdate({
+          stock: Math.max(0, data.inventory ?? listing.stock),
+          state: nextState,
+          status: listingStatusFromDropState(nextState),
+        });
         onCelebrate({
           title: listing.title,
           amount: fmt(eurosFromCents(data.amount_cents ?? Math.round(Number(listing.price) * 100))),
@@ -61,8 +71,16 @@ export function ListingCard({
     es.addEventListener("state_changed", (e: MessageEvent) => {
       try {
         const data = JSON.parse(e.data as string);
-        if (data.state === "sold_out") onUpdate({ status: "sold", stock: 0 });
-        else if (data.inventory != null) onUpdate({ stock: data.inventory - (data.sold_count ?? 0) });
+        const nextState = data.state as DropState | undefined;
+        if (nextState) {
+          onUpdate({
+            state: nextState,
+            status: listingStatusFromDropState(nextState),
+            stock: nextState === "sold_out" ? 0 : Math.max(0, data.inventory ?? listing.stock),
+          });
+        } else if (data.inventory != null) {
+          onUpdate({ stock: Math.max(0, data.inventory) });
+        }
       } catch { /* ignore */ }
     });
 
@@ -173,7 +191,13 @@ export function ListingCard({
           </Text>
         </Flex>
 
-        {listing.bunqTabUrl && <BunqQrPanel url={listing.bunqTabUrl} price={listing.price} />}
+        {listing.bunqTabUrl && (
+          <BunqQrPanel
+            url={buyerCheckoutUrl(listing.slug)}
+            price={listing.price}
+            bunqUrl={listing.bunqTabUrl}
+          />
+        )}
       </Box>
     </GlassCard>
   );

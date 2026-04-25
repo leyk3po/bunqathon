@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Box, Flex, Grid, Image, SimpleGrid, Spinner, Text, Textarea } from "@chakra-ui/react";
-import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
-import { api, centsFromEuros, dataUrlToBlob, eurosFromCents, type DropPublic } from "./api";
+import { Box, Flex, Grid, Image, Link, SimpleGrid, Spinner, Text, Textarea } from "@chakra-ui/react";
+import { BrowserRouter, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { api, centsFromEuros, dataUrlToBlob, eurosFromCents, type DropDetail, type DropPublic, type DropState } from "./api";
 import { DARK, INK_FG, BG, SURFACE, CARD, BORDER, TEXT, MUTED, FONT, PANEL } from "./theme/tokens";
 import { BunqWordmark } from "./components/BunqWordmark";
 import { GlassCard } from "./components/GlassCard";
+import { ProductTileImage } from "./components/ProductTileImage";
 import { VoiceWave } from "./components/VoiceWave";
 import { PaymentCelebration, type CelebrationData } from "./components/PaymentCelebration";
 import { ListingCard, type Listing } from "./components/ListingCard";
@@ -57,6 +58,12 @@ function dropToListing(drop: DropPublic): Listing {
 
 function nowTime() {
   return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date());
+}
+
+function checkoutStatusFromState(state: DropState): "ready" | "paid" | "unavailable" {
+  if (state === "sold_out" || state === "partially_sold") return "paid";
+  if (state === "live") return "ready";
+  return "unavailable";
 }
 
 function titleFromPrompt(p: string) {
@@ -879,6 +886,191 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
   );
 }
 
+function BuyerCheckoutPage() {
+  const { slug = "" } = useParams();
+  const navigate = useNavigate();
+  const [drop, setDrop] = useState<DropDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [paying, setPaying] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    api.getDrop(slug)
+      .then((result) => { if (active) setDrop(result); })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : "Could not load checkout");
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [slug]);
+
+  const handlePay = async () => {
+    if (!drop) return;
+    setPaying(true);
+    setError("");
+    try {
+      await api.mockPayment(drop.id);
+      navigate(`/buy/${encodeURIComponent(drop.slug)}/success`, { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Payment failed");
+      setPaying(false);
+    }
+  };
+
+  if (loading) {
+    return <Flex minH="100dvh" bg={BG} align="center" justify="center"><Spinner size="xl" /></Flex>;
+  }
+
+  if (!drop) {
+    return (
+      <Flex minH="100dvh" bg={BG} align="center" justify="center" p={6}>
+        <Box className="glass-card" borderRadius="18px" p="28px" maxW="420px" w="full">
+          <Text fontFamily={FONT} fontSize="22px" fontWeight="700" color={TEXT}>Checkout unavailable</Text>
+          <Text fontFamily={FONT} fontSize="14px" color={MUTED} mt="8px">
+            {error || "This payment page could not be loaded."}
+          </Text>
+        </Box>
+      </Flex>
+    );
+  }
+
+  const checkoutState = checkoutStatusFromState(drop.state);
+
+  return (
+    <Flex minH="100dvh" bg={BG} align="center" justify="center" p={{ base: 4, md: 8 }}>
+      <Box className="glass-card" borderRadius="22px" maxW="460px" w="full" overflow="hidden">
+        <Box h="220px" overflow="hidden" bg={SURFACE}>
+          <ProductTileImage imageUrl={drop.media_url ?? ""} title={drop.title} />
+        </Box>
+        <Box p={{ base: "22px", md: "28px" }}>
+          <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.08em">
+            FlashDrop checkout
+          </Text>
+          <Text fontFamily={FONT} fontSize="28px" fontWeight="700" color={TEXT} letterSpacing="-0.9px" mt="6px">
+            {drop.title}
+          </Text>
+          <Text fontFamily={FONT} fontSize="15px" color={MUTED} lineHeight="1.55" mt="10px">
+            {drop.description || "Complete the sandbox buyer flow below."}
+          </Text>
+
+          <Flex align="baseline" justify="space-between" mt="20px" mb="18px">
+            <Text fontFamily={FONT} fontSize="30px" fontWeight="700" color={TEXT} letterSpacing="-0.7px">
+              € {eurosFromCents(drop.price_cents)}
+            </Text>
+            <Text fontFamily={FONT} fontSize="12px" color={MUTED}>
+              {Math.max(0, drop.inventory)} left
+            </Text>
+          </Flex>
+
+          <Box
+            bg={SURFACE}
+            border="1px solid"
+            borderColor={BORDER}
+            borderRadius="14px"
+            p="14px"
+            mb="16px"
+          >
+            <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.06em">
+              Sandbox note
+            </Text>
+            <Text fontFamily={FONT} fontSize="13px" color={TEXT} mt="6px" lineHeight="1.55">
+              This buyer page mimics the QR scan to pay to redirect flow. Tapping pay triggers the mocked bunq callback so the seller dashboard updates live.
+            </Text>
+          </Box>
+
+          {error && (
+            <Text fontFamily={FONT} fontSize="13px" color="red.500" mb="12px">{error}</Text>
+          )}
+
+          <Box
+            as="button"
+            {...btnPrimary}
+            w="full"
+            h="50px"
+            opacity={paying || checkoutState !== "ready" ? 0.6 : 1}
+            cursor={paying || checkoutState !== "ready" ? "not-allowed" : "pointer"}
+            onClick={paying || checkoutState !== "ready" ? undefined : handlePay}
+          >
+            {checkoutState === "paid" ? "Already paid" : checkoutState === "unavailable" ? "Unavailable" : paying ? "Processing payment…" : "Pay now"}
+          </Box>
+
+          <Box mt="14px">
+            <Text fontFamily={FONT} fontSize="10px" color={MUTED} textTransform="uppercase" letterSpacing="0.06em">
+              bunq integration proof
+            </Text>
+            <Text fontFamily={FONT} fontSize="12px" color={MUTED} mt="6px" lineHeight="1.55">
+              We still create the real bunq sandbox payment link. It is surfaced below even though the sandbox buyer page itself is currently unreliable.
+            </Text>
+            {drop.bunq_tab_url && (
+              <Link
+                href={drop.bunq_tab_url}
+                target="_blank"
+                rel="noreferrer"
+                display="inline-block"
+                mt="8px"
+                fontFamily={FONT}
+                fontSize="12px"
+                color={TEXT}
+                textDecoration="underline"
+                textUnderlineOffset="2px"
+                wordBreak="break-all"
+              >
+                {drop.bunq_tab_url}
+              </Link>
+            )}
+          </Box>
+        </Box>
+      </Box>
+    </Flex>
+  );
+}
+
+function BuyerSuccessPage() {
+  const { slug = "" } = useParams();
+  const [drop, setDrop] = useState<DropDetail | null>(null);
+
+  useEffect(() => {
+    api.getDrop(slug).then(setDrop).catch(() => undefined);
+  }, [slug]);
+
+  return (
+    <Flex minH="100dvh" bg={BG} align="center" justify="center" p={{ base: 4, md: 8 }}>
+      <Box className="glass-card" borderRadius="22px" maxW="420px" w="full" p={{ base: "28px", md: "34px" }}>
+        <Box
+          w="64px" h="64px"
+          bg="black"
+          borderRadius="50%"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          mb="18px"
+        >
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+            <path d="M5 12l5 5L19 7" stroke="white" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </Box>
+        <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.08em">
+          Payment complete
+        </Text>
+        <Text fontFamily={FONT} fontSize="30px" fontWeight="700" color={TEXT} letterSpacing="-0.9px" mt="8px">
+          Thanks for your payment
+        </Text>
+        <Text fontFamily={FONT} fontSize="15px" color={MUTED} lineHeight="1.6" mt="12px">
+          {drop ? `${drop.title} was marked as paid and the seller view should now be updated.` : "The seller dashboard should now reflect the payment."}
+        </Text>
+        {drop && (
+          <Text fontFamily={FONT} fontSize="22px" fontWeight="700" color={TEXT} mt="20px">
+            € {eurosFromCents(drop.price_cents)}
+          </Text>
+        )}
+      </Box>
+    </Flex>
+  );
+}
+
 // ─── Root ─────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
@@ -886,6 +1078,8 @@ export default function App() {
       <Routes>
         <Route index element={<LoginPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/buy/:slug" element={<BuyerCheckoutPage />} />
+        <Route path="/buy/:slug/success" element={<BuyerSuccessPage />} />
         <Route path="*" element={<Navigate replace to="/" />} />
       </Routes>
     </BrowserRouter>

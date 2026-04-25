@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Box, Flex, Grid, Text, Textarea } from "@chakra-ui/react";
-import { api, centsFromEuros, type DropState } from "../api";
+import { api, buyerCheckoutUrl, centsFromEuros, type DropState } from "../api";
 import { DARK, INK_FG, CARD, SURFACE, BORDER, TEXT, MUTED, FONT } from "../theme/tokens";
 import { BunqQrPanel } from "./BunqQrPanel";
 import type { Listing } from "./ListingCard";
@@ -35,31 +35,36 @@ const inputStyle = {
 
 function stateLabel(state: DropState | undefined): string {
   switch (state) {
-    case "live":           return "Live";
+    case "live": return "Live";
     case "partially_sold": return "Selling";
-    case "sold_out":       return "Sold out";
-    case "paused":         return "Paused";
+    case "sold_out": return "Sold out";
+    case "paused": return "Paused";
     case "review":
-    case "processing":     return "In review";
-    case "expired":        return "Expired";
-    case "archived":       return "Archived";
-    default:               return "Draft";
+    case "processing": return "In review";
+    case "expired": return "Expired";
+    case "archived": return "Archived";
+    default: return "Draft";
   }
 }
 
-export function EditModal({ listing, onClose, onSave, onArchive }: {
+export function EditModal({
+  listing,
+  onClose,
+  onSave,
+  onArchive,
+}: {
   listing: Listing;
   onClose: () => void;
   onSave: (u: Partial<Listing>) => void;
   onArchive: () => void;
 }) {
-  const [title, setTitle]      = useState(listing.title);
+  const [title, setTitle] = useState(listing.title);
   const [description, setDesc] = useState(listing.description);
-  const [price, setPrice]      = useState(listing.price);
-  const [stock, setStock]      = useState(listing.stock);
-  const [saving, setSaving]    = useState(false);
-  const [acting, setActing]    = useState(false);
-  const [error, setError]      = useState("");
+  const [price, setPrice] = useState(listing.price);
+  const [stock, setStock] = useState(listing.stock);
+  const [saving, setSaving] = useState(false);
+  const [acting, setActing] = useState(false);
+  const [error, setError] = useState("");
 
   const state = listing.state;
 
@@ -107,7 +112,6 @@ export function EditModal({ listing, onClose, onSave, onArchive }: {
 
   const busy = saving || acting;
 
-  // Primary action based on current state
   type Action = { label: string; fn: () => void } | null;
   const primaryAction: Action =
     state === "draft"
@@ -144,7 +148,6 @@ export function EditModal({ listing, onClose, onSave, onArchive }: {
         maxH="calc(100dvh - 32px)"
         overflow="auto"
       >
-        {/* Header */}
         <Flex
           align="center"
           justify="space-between"
@@ -183,13 +186,20 @@ export function EditModal({ listing, onClose, onSave, onArchive }: {
           </Box>
         </Flex>
 
-        {/* Body */}
         <Box p="24px">
           {listing.bunqTabUrl && (
             <Box mb="20px">
-              <BunqQrPanel url={listing.bunqTabUrl} price={listing.price} />
+              <BunqQrPanel
+                url={buyerCheckoutUrl(listing.slug)}
+                price={listing.price}
+                bunqUrl={listing.bunqTabUrl}
+              />
             </Box>
           )}
+
+          <Text fontFamily={FONT} fontSize="12px" color={MUTED} mb="16px" lineHeight="1.5">
+            Buyers scan this QR to open the mocked sandbox checkout on their phone. Completing that flow marks the payment paid and updates the seller view live.
+          </Text>
 
           <Box display="flex" flexDirection="column" gap="16px">
             <Field label="Title">
@@ -239,7 +249,6 @@ export function EditModal({ listing, onClose, onSave, onArchive }: {
             <Text fontFamily={FONT} fontSize="13px" color="red.500" mt="12px">{error}</Text>
           )}
 
-          {/* Save */}
           <Box
             as="button"
             w="full"
@@ -263,7 +272,6 @@ export function EditModal({ listing, onClose, onSave, onArchive }: {
             {saving ? "Saving…" : "Save changes"}
           </Box>
 
-          {/* State transitions */}
           {(primaryAction || state !== "archived") && (
             <Box mt="12px" display="flex" flexDirection="column" gap="8px">
               {primaryAction && (

@@ -27,6 +27,11 @@ class Settings:
     }
     bunq_callback_url: str = os.getenv("BUNQ_CALLBACK_URL", "").strip()
     bunq_context_file: str = os.getenv("BUNQ_CONTEXT_FILE", "").strip() or _DEFAULT_BUNQ_CONTEXT_FILE
+    bunq_permitted_ips: tuple[str, ...] = tuple(
+        ip.strip()
+        for ip in os.getenv("BUNQ_PERMITTED_IPS", "").split(",")
+        if ip.strip()
+    )
     bunq_monetary_account_id: int | None = (
         int(os.getenv("BUNQ_MONETARY_ACCOUNT_ID", "").strip())
         if os.getenv("BUNQ_MONETARY_ACCOUNT_ID", "").strip()

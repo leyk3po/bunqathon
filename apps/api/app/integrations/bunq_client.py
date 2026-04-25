@@ -41,6 +41,7 @@ class BunqClient:
         api_key: str,
         sandbox: bool,
         context_file: str,
+        permitted_ips: tuple[str, ...],
         user_agent: str,
         timeout_seconds: float,
     ) -> None:
@@ -53,6 +54,7 @@ class BunqClient:
         self.sandbox = sandbox
         self.base_url = SANDBOX_BASE_URL if sandbox else PRODUCTION_BASE_URL
         self.context_file = Path(context_file)
+        self.permitted_ips = permitted_ips
         self.user_agent = user_agent
         self.timeout_seconds = timeout_seconds
 
@@ -126,15 +128,13 @@ class BunqClient:
                 self.server_public_key = item["ServerPublicKey"]["server_public_key"]
 
     def _step2_device_server(self) -> None:
-        self._raw_post(
-            "device-server",
-            {
-                "description": self.user_agent,
-                "secret": self.api_key,
-                "permitted_ips": ["*"],
-            },
-            auth_token=self.installation_token,
-        )
+        body: dict[str, Any] = {
+            "description": self.user_agent,
+            "secret": self.api_key,
+        }
+        if self.permitted_ips:
+            body["permitted_ips"] = list(self.permitted_ips)
+        self._raw_post("device-server", body, auth_token=self.installation_token)
 
     def _step3_session_server(self) -> None:
         response = self._raw_post(

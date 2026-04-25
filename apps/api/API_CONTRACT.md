@@ -130,7 +130,25 @@ Later events currently include:
 - `payment`
 - `state_changed`
 
-### 8. Inspect persisted events
+### 8. Mock a sandbox payment
+
+`POST /drops/{drop_id}/mock-payment`
+
+This is a sandbox-only demo endpoint. It marks the most recent pending bunq payment for the drop as paid and emits the same live updates the webhook flow would normally trigger.
+
+### 9. Buyer QR flow
+
+The frontend QR now points to a buyer checkout page inside the app rather than directly to the unstable bunq sandbox checkout.
+
+That buyer page:
+
+- loads the public drop by slug
+- shows the item and amount on mobile
+- triggers `POST /drops/{drop_id}/mock-payment` when the buyer taps pay
+- redirects to a success screen after payment
+- still exposes the real bunq sandbox URL as proof that the integration exists
+
+### 10. Inspect persisted events
 
 `GET /drops/{slug}/events`
 
@@ -151,4 +169,4 @@ any active state -> archived
 - `publish` is no longer allowed directly from `draft`
 - use the `snapshot` SSE event as the initial live state
 - `bunq_tab_url` is the current buyer-facing payment link
-- AI and bunq are still stubbed, but the HTTP contract is now stable enough for UI work
+- bunq link creation is live, but sandbox checkout may need `POST /drops/{drop_id}/mock-payment` for demos when bunq sandbox buyer links do not resolve
