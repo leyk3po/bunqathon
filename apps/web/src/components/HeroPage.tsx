@@ -84,7 +84,7 @@ function LogoMark() {
       alt="FlashDrop"
       display="block"
       draggable={false}
-      css={{ height: "clamp(72px, 9vw, 116px)", width: "auto" }}
+      css={{ height: "clamp(24px, 2.4vw, 36px)", width: "auto" }}
     />
   );
 }
