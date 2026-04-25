@@ -381,12 +381,58 @@ function ListingCard({ listing }: { listing: Listing }) {
   );
 }
 
+function dropToListing(drop: import("./api").DropPublic): Listing {
+  const status: ListingStatus =
+    drop.state === "live" || drop.state === "partially_sold"
+      ? "live"
+      : drop.state === "sold_out"
+        ? "sold"
+        : "draft";
+  return {
+    id: drop.id,
+    title: drop.title,
+    description: drop.description || "",
+    price: eurosFromCents(drop.price_cents),
+    stock: drop.inventory,
+    category: "Live drop",
+    imageUrl: drop.media_url ?? "",
+    prompt: "",
+    status,
+    views: 0,
+    saves: 0,
+    createdAt: new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(drop.created_at)),
+    slug: drop.slug,
+    bunqTabUrl: drop.bunq_tab_url,
+  };
+}
+
 function DashboardPage() {
-  const [listings, setListings] = useState(starterListings);
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [captureOpen, setCaptureOpen] = useState(false);
   const liveCount = listings.filter((listing) => listing.status === "live").length;
   const stockCount = listings.reduce((total, listing) => total + listing.stock, 0);
   const totalViews = listings.reduce((total, listing) => total + listing.views, 0);
+
+  const refresh = async () => {
+    setIsLoading(true);
+    setLoadError("");
+    try {
+      const drops = await api.listDrops({ limit: 100 });
+      setListings(drops.map(dropToListing));
+    } catch (err) {
+      console.warn("listDrops failed, using local stub", err);
+      setLoadError("Backend unreachable — showing demo data.");
+      setListings(starterListings);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
 
   return (
     <Box bg="#f8f1df" minH="100dvh" pb="112px">
@@ -432,9 +478,14 @@ function DashboardPage() {
           <Box>
             <Heading size="lg">Listings</Heading>
             <Text color="gray.500">Everything this seller has posted.</Text>
+            {loadError ? (
+              <Text color="orange.600" fontSize="sm" mt={1}>
+                {loadError}
+              </Text>
+            ) : null}
           </Box>
-          <Button colorPalette="gray" onClick={() => setListings(starterListings)} variant="outline">
-            Reset demo
+          <Button colorPalette="gray" loading={isLoading} onClick={refresh} variant="outline">
+            Refresh
           </Button>
         </Flex>
 
