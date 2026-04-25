@@ -39,6 +39,10 @@ class DropConflict(DropError):
     pass
 
 
+class DropForbidden(DropError):
+    pass
+
+
 class DropInvalid(DropError):
     pass
 
@@ -141,6 +145,11 @@ def get_by_id(db: Session, drop_id: str) -> Drop:
     if drop is None:
         raise DropNotFound("drop not found")
     return drop
+
+
+def ensure_owner(drop: Drop, seller_id: str) -> None:
+    if drop.seller_id != seller_id:
+        raise DropForbidden("seller does not own this drop")
 
 
 def update_drop(db: Session, drop_id: str, payload: DropUpdate) -> Drop:

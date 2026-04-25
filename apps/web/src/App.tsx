@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Box, Flex, Grid, Image, Link, QrCode, SimpleGrid, Spinner, Text, Textarea } from "@chakra-ui/react";
 import { BrowserRouter, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { api, buyerCheckoutUrl, centsFromEuros, dataUrlToBlob, eurosFromCents, type DropDetail, type DropPublic, type DropState } from "./api";
+import { api, buyerCheckoutUrl, centsFromEuros, clearAuth, dataUrlToBlob, eurosFromCents, getStoredSeller, persistAuth, persistSeller, type DropDetail, type DropPublic, type DropState, type SellerPublic } from "./api";
 import { G, DARK, INK_FG, BG, SURFACE, CARD, BORDER, TEXT, MUTED, FONT, PANEL } from "./theme/tokens";
 import { BunqWordmark } from "./components/BunqWordmark";
 import { GlassCard } from "./components/GlassCard";
@@ -37,10 +37,6 @@ const btnOutline = {
 } as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const SELLER_KEY  = "flashdrop_seller_id";
-const getSellerId = () => sessionStorage.getItem(SELLER_KEY) ?? "";
-const setSellerId = (v: string) => sessionStorage.setItem(SELLER_KEY, v);
-
 function dropToListing(drop: DropPublic): Listing {
   const status =
     drop.state === "live" || drop.state === "partially_sold" ? "live" as const
@@ -200,12 +196,47 @@ function IconArrow() {
 // ─── Login ────────────────────────────────────────────────────────────────────
 function LoginPage() {
   const navigate = useNavigate();
-  const [name, setName] = useState(getSellerId);
   const { dark, toggle } = useTheme();
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  const go = () => {
-    setSellerId(name.trim() || "demo-seller");
-    navigate("/dashboard");
+  useEffect(() => {
+    if (getStoredSeller()) navigate("/dashboard", { replace: true });
+  }, [navigate]);
+
+  const submit = async () => {
+    setSubmitting(true);
+    setError("");
+    if (mode === "register" && displayName.trim().length < 2) {
+      setError("Display name must be at least 2 characters.");
+      setSubmitting(false);
+      return;
+    }
+    if (email.trim().length < 5) {
+      setError("Enter a valid email address.");
+      setSubmitting(false);
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      setSubmitting(false);
+      return;
+    }
+    try {
+      const auth = mode === "register"
+        ? await api.registerSeller({ email: email.trim(), display_name: displayName.trim(), password })
+        : await api.loginSeller({ email: email.trim(), password });
+      persistAuth(auth);
+      navigate("/dashboard", { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Authentication failed");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -245,32 +276,63 @@ function LoginPage() {
         {/* Card */}
         <GlassCard className="login-card-in" w="full" borderRadius="20px" p={{ base: "28px", md: "36px" }}>
           <Text fontFamily={FONT} fontSize="22px" fontWeight="700" color={TEXT} letterSpacing="-0.5px" mb="6px">
-            Start selling
+            {mode === "register" ? "Create seller account" : "Seller sign in"}
           </Text>
           <Text fontFamily={FONT} fontSize="14px" color={MUTED} mb="28px" lineHeight={1.6}>
-            Snap a photo, describe your item, get a live payment link in seconds.
+            Use a real seller login so your drops stay attached to your account across sessions.
           </Text>
 
           <Box display="flex" flexDirection="column" gap="10px">
+            {mode === "register" && (
+              <Box
+                as="input"
+                {...inputBase as any}
+                h="46px"
+                borderRadius="10px"
+                {...{ placeholder: "Display name or booth" } as any}
+                value={displayName}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDisplayName(e.target.value)}
+                onKeyDown={(e: React.KeyboardEvent) => e.key === "Enter" && submit()}
+              />
+            )}
             <Box
               as="input"
               {...inputBase as any}
               h="46px"
               borderRadius="10px"
-              {...{ placeholder: "Your name or booth" } as any}
-              value={name}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
-              onKeyDown={(e: React.KeyboardEvent) => e.key === "Enter" && go()}
+              type="email"
+              {...{ placeholder: "Email" } as any}
+              value={email}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+              onKeyDown={(e: React.KeyboardEvent) => e.key === "Enter" && submit()}
             />
+            <Box
+              as="input"
+              {...inputBase as any}
+              h="46px"
+              borderRadius="10px"
+              type="password"
+              {...{ placeholder: "Password" } as any}
+              value={password}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+              onKeyDown={(e: React.KeyboardEvent) => e.key === "Enter" && submit()}
+            />
+            {error && (
+              <Text fontFamily={FONT} fontSize="13px" color="red.500">
+                {error}
+              </Text>
+            )}
             <Box
               as="button"
               {...btnPrimary}
               h="46px" gap="8px"
               borderRadius="10px"
               _hover={{ opacity: 0.88, transform: "translateY(-1px)", boxShadow: "0 6px 20px rgba(0,0,0,0.18)" }}
-              onClick={go}
+              opacity={submitting ? 0.7 : 1}
+              cursor={submitting ? "not-allowed" : "pointer"}
+              onClick={submitting ? undefined : submit}
             >
-              Get started <IconArrow />
+              {submitting ? "Working..." : mode === "register" ? "Create account" : "Sign in"} {!submitting && <IconArrow />}
             </Box>
           </Box>
 
@@ -281,9 +343,9 @@ function LoginPage() {
             border="none" cursor="pointer" w="full" mt="16px" h="32px"
             _hover={{ color: TEXT }}
             transition="color 150ms ease"
-            onClick={() => { setSellerId("demo-seller"); navigate("/dashboard"); }}
+            onClick={() => { setError(""); setMode((m) => m === "login" ? "register" : "login"); }}
           >
-            View demo
+            {mode === "login" ? "Need an account? Register" : "Already registered? Sign in"}
           </Box>
         </GlassCard>
 
@@ -302,26 +364,49 @@ function LoginPage() {
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 function DashboardPage() {
   const navigate                   = useNavigate();
-  const sellerId                   = getSellerId();
   const { dark, toggle }           = useTheme();
+  const [seller, setSeller]        = useState<SellerPublic | null>(() => getStoredSeller());
   const [listings, setListings]    = useState<Listing[]>([]);
   const [loading, setLoading]      = useState(true);
   const [loadError, setLoadError]  = useState("");
   const [captureOpen, setCaptureOpen] = useState(false);
   const [editTarget, setEditTarget]   = useState<Listing | null>(null);
   const [celebration, setCelebration] = useState<CelebrationData | null>(null);
+  const sellerId = seller?.id ?? "";
+  const sellerName = seller?.display_name ?? "";
 
   const liveCount  = listings.filter((l) => l.status === "live").length;
   const stockCount = listings.reduce((t, l) => t + l.stock, 0);
   const soldCount  = listings.filter((l) => l.status === "sold").length;
 
+  useEffect(() => {
+    if (!sellerId) {
+      navigate("/", { replace: true });
+      return;
+    }
+    api.getMe()
+      .then((me) => {
+        persistSeller(me);
+        setSeller(me);
+      })
+      .catch(() => {
+        clearAuth();
+        navigate("/", { replace: true });
+      });
+  }, [navigate, sellerId]);
+
   const fetchDrops = useCallback(async () => {
+    if (!sellerId) {
+      setListings([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true); setLoadError("");
     try {
       const drops = await api.listDrops({ seller_id: sellerId || undefined, limit: 100 });
       setListings(drops.filter((d) => d.state !== "archived").map(dropToListing));
-    } catch {
-      setLoadError("Could not reach backend.");
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Could not reach backend.");
     } finally {
       setLoading(false);
     }
@@ -360,7 +445,7 @@ function DashboardPage() {
           {/* Right controls */}
           <Flex align="center" gap="8px" flexShrink={0}>
             {/* Seller avatar pill */}
-            {sellerId && (
+            {sellerName && (
               <Flex
                 display={{ base: "none", sm: "flex" }}
                 align="center" gap="8px"
@@ -377,7 +462,7 @@ function DashboardPage() {
                   flexShrink={0}
                 >
                   <Text fontFamily={FONT} fontSize="10px" fontWeight="700" color={TEXT} lineHeight={1}>
-                    {sellerId[0]?.toUpperCase()}
+                    {sellerName[0]?.toUpperCase()}
                   </Text>
                 </Box>
                 <Text
@@ -385,7 +470,7 @@ function DashboardPage() {
                   overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap"
                   maxW="120px"
                 >
-                  {sellerId}
+                  {sellerName}
                 </Text>
               </Flex>
             )}
@@ -401,7 +486,7 @@ function DashboardPage() {
               display="flex"
               alignItems="center"
               justifyContent="center"
-              onClick={() => navigate("/")}
+              onClick={() => { clearAuth(); navigate("/", { replace: true }); }}
               _hover={{ color: "red.500" }}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
@@ -518,7 +603,6 @@ function DashboardPage() {
 
       {captureOpen && (
         <CaptureOverlay
-          sellerId={sellerId}
           onClose={() => setCaptureOpen(false)}
           onPost={(l) => setListings((cur) => [l, ...cur])}
         />
@@ -537,9 +621,9 @@ function DashboardPage() {
 }
 
 // ─── Capture overlay ──────────────────────────────────────────────────────────
-type CaptureProps = { sellerId: string; onClose: () => void; onPost: (l: Listing) => void };
+type CaptureProps = { onClose: () => void; onPost: (l: Listing) => void };
 
-function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
+function CaptureOverlay({ onClose, onPost }: CaptureProps) {
   const videoRef        = useRef<HTMLVideoElement | null>(null);
   const streamRef       = useRef<MediaStream | null>(null);
   const recorderRef     = useRef<MediaRecorder | null>(null);
@@ -653,7 +737,7 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
     try {
       if (!capturedBlobRef.current && draft.imageUrl.startsWith("data:")) capturedBlobRef.current = await dataUrlToBlob(draft.imageUrl);
       const mediaUrl = await ensureUploaded();
-      const created  = await api.createDrop({ title: draft.title.trim() || titleFromPrompt(draft.prompt), description: draft.description.trim(), pitch: draft.prompt.trim() || null, price_cents: centsFromEuros(draft.price), inventory: Math.max(1, draft.stock), media_url: mediaUrl, seller_id: sellerId || undefined });
+      const created  = await api.createDrop({ title: draft.title.trim() || titleFromPrompt(draft.prompt), description: draft.description.trim(), pitch: draft.prompt.trim() || null, price_cents: centsFromEuros(draft.price), inventory: Math.max(1, draft.stock), media_url: mediaUrl });
       const reviewed = await api.moveToReview(created.id);
       const live     = await api.publish(reviewed.id);
       onPost({ id: live.id, slug: live.slug, title: live.title, description: live.description, price: eurosFromCents(live.price_cents), stock: live.inventory, category: draft.category, imageUrl: draft.imageUrl, prompt: draft.prompt, status: "live", createdAt: nowTime(), audioUrl: draft.audioUrl, bunqTabUrl: live.bunq_tab_url });
@@ -1243,7 +1327,7 @@ function LiveWallPage() {
                     Seller script
                   </Text>
                   <Text fontFamily={FONT} fontSize={{ base: "18px", md: "22px" }} fontWeight="600" lineHeight="1.45" mt="10px">
-                    “Scan the code, pay on your phone, and this wall updates the second it lands.”
+                    "Scan the code, pay on your phone, and this wall updates the second it lands."
                   </Text>
                 </Box>
 
