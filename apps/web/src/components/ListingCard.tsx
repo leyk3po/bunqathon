@@ -40,8 +40,13 @@ function fmt(price: string) {
   return `€ ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
 }
 
+function parseUtc(iso: string): number {
+  const hasTz = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso);
+  return new Date(hasTz ? iso : iso + "Z").getTime();
+}
+
 function fmtCountdown(expiresAt: string): string {
-  const ms = new Date(expiresAt).getTime() - Date.now();
+  const ms = parseUtc(expiresAt) - Date.now();
   if (ms <= 0) return "Ended";
   const s = Math.floor(ms / 1000);
   const h = Math.floor(s / 3600);

@@ -1597,8 +1597,14 @@ function useWallCountdown(expiresAt?: string | null) {
   }, [expiresAt]);
 }
 
+function parseUtc(iso: string): number {
+  // Backend may emit naive ISO (no Z / offset). Treat naive timestamps as UTC.
+  const hasTz = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso);
+  return new Date(hasTz ? iso : iso + "Z").getTime();
+}
+
 function fmtWallCountdown(expiresAt: string): string {
-  const ms = new Date(expiresAt).getTime() - Date.now();
+  const ms = parseUtc(expiresAt) - Date.now();
   if (ms <= 0) return "Ended";
   const s = Math.floor(ms / 1000);
   const h = Math.floor(s / 3600);

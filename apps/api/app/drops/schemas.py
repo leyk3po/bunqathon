@@ -107,6 +107,13 @@ class DropPublic(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    @field_validator("expires_at", "created_at", "updated_at", mode="before")
+    @classmethod
+    def _ensure_utc(cls, v: object) -> object:
+        if isinstance(v, datetime) and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
+
 
 class DropDetail(DropPublic):
     pitch: str | None
