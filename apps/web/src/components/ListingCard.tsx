@@ -42,12 +42,14 @@ export function ListingCard({
   onUpdate,
   onPreview,
   onEdit,
+  onWall,
   onCelebrate,
 }: {
   listing: Listing;
   onUpdate: (u: Partial<Listing>) => void;
   onPreview: () => void;
   onEdit: () => void;
+  onWall: () => void;
   onCelebrate: (d: CelebrationData) => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -179,11 +181,23 @@ export function ListingCard({
     );
   }
 
+  function IconWall() {
+    return (
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none">
+        <rect x="2.75" y="4.75" width="18.5" height="12.5" rx="2" stroke="currentColor" strokeWidth="1.8" />
+        <path d="M8.75 20.25h6.5M12 17.25v3" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+        <circle cx="12" cy="11" r="2.25" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M8.5 11a3.5 3.5 0 0 1 3.5-3.5M15.5 11a3.5 3.5 0 0 1-3.5 3.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
+      </svg>
+    );
+  }
+
   function StatusBadge() {
     if (st === "live" || st === "partially_sold") {
+      const dotColor = st === "partially_sold" ? "#22c55e" : "#ef4444";
       return (
         <Flex align="center" gap="5px" bg="white" borderRadius="20px" px="8px" py="4px" boxShadow="0 1px 6px rgba(0,0,0,0.14)">
-          <Box bg="black" borderRadius="full" h="6px" w="6px" flexShrink={0} position="relative" className="live-pulse" />
+          <Box style={{ backgroundColor: dotColor, "--dot-clr": dotColor } as React.CSSProperties} borderRadius="full" h="6px" w="6px" flexShrink={0} position="relative" className="live-pulse" />
           <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color="black">
             {st === "partially_sold" ? "Selling" : "Live"}
           </Text>
@@ -249,6 +263,11 @@ export function ListingCard({
           {isShareable && (
             <IconButton label={copied ? "Copied link" : "Share listing"} onClick={(event) => stopAndRun(event, shareListing)}>
               <IconShare />
+            </IconButton>
+          )}
+          {isShareable && (
+            <IconButton label="Live wall" onClick={(event) => stopAndRun(event, onWall)}>
+              <IconWall />
             </IconButton>
           )}
         </Flex>

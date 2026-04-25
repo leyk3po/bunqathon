@@ -352,6 +352,9 @@ a {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: #0a0a0a;
+  background: var(--dot-clr, #ef4444);
   animation: pulse-ring 1.6s ease-out infinite;
 }
+
+.dot-live    { background-color: #ef4444 !important; --dot-clr: #ef4444; }
+.dot-selling { background-color: #22c55e !important; --dot-clr: #22c55e; }
