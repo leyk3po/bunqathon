@@ -1,3 +1,17 @@
+{
+  # ZeroSSL kicks in as fallback if Let's Encrypt rate-limits us.
+  email flashdrop@duckdns.org
+}
+
+54-163-114-64.nip.io {
+  encode gzip
+
+  @api path /api/* /media/* /health* /docs /openapi.json /redoc
+  reverse_proxy @api 127.0.0.1:8000
+
+  reverse_proxy 127.0.0.1:5173
+}
+
 flashdrop.duckdns.org {
   encode gzip
 
