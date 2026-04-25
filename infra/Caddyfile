@@ -1,0 +1,8 @@
+flashdrop.duckdns.org {
+  encode gzip
+
+  @api path /api/* /media/* /health* /docs /openapi.json /redoc
+  reverse_proxy @api 127.0.0.1:8000
+
+  reverse_proxy 127.0.0.1:5173
+}
