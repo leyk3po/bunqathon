@@ -194,7 +194,8 @@ def publish_drop(db: Session, drop_id: str) -> Drop:
         raise DropInvalid("price must be > 0 before publishing")
     if drop.inventory <= 0:
         raise DropInvalid("inventory must be > 0 before publishing")
-    if drop.expires_at is not None and drop.expires_at <= _utcnow():
+    expires = _coerce_utc(drop.expires_at)
+    if expires is not None and expires <= _utcnow():
         raise DropInvalid("cannot publish a drop whose end time has already passed")
 
     tab = bunq.create_bunqme_tab(
