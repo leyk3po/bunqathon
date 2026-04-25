@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Box, Flex, Grid, Text, Textarea } from "@chakra-ui/react";
 import { api, centsFromEuros } from "../api";
 import { G, DARK, INK_FG, CARD, SURFACE, BORDER, TEXT, MUTED, FONT } from "../theme/tokens";
+import { GlassCard } from "./GlassCard";
 import { BunqQrPanel } from "./BunqQrPanel";
 import type { Listing } from "./ListingCard";
 
@@ -75,15 +76,11 @@ export function EditModal({ listing, onClose, onSave }: {
       onClick={onClose}
       style={{ backdropFilter: "blur(4px)" }}
     >
-      <Box
-        bg={CARD}
-        border="1px solid"
-        borderColor={BORDER}
+      <GlassCard
         borderRadius="16px"
         maxW="500px"
         w="full"
-        boxShadow="0 24px 48px rgba(0,0,0,0.2)"
-        onClick={(e) => e.stopPropagation()}
+        onClick={((e: React.MouseEvent) => e.stopPropagation()) as any}
         maxH="calc(100dvh - 32px)"
         overflow="auto"
       >
@@ -228,7 +225,7 @@ export function EditModal({ listing, onClose, onSave }: {
             </Box>
           </Flex>
         </Box>
-      </Box>
+      </GlassCard>
     </Flex>
   );
 }

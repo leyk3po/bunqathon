@@ -1,5 +1,5 @@
 import { Box, Flex, QrCode, Text } from "@chakra-ui/react";
-import { PANEL, G, FONT } from "../theme/tokens";
+import { PANEL, FONT } from "../theme/tokens";
 
 function fmt(price: string) {
   const n = Number(price);
@@ -21,21 +21,13 @@ export function BunqQrPanel({ url, price }: { url: string; price: string }) {
         </QrCode.Frame>
       </QrCode.Root>
       <Box minW={0}>
-        <Text
-          fontFamily={FONT}
-          fontSize="10px"
-          fontWeight="600"
-          color={G}
-          textTransform="uppercase"
-          letterSpacing="0.06em"
-          mb="2px"
-        >
-          bunq pay
+        <Text fontFamily={FONT} fontSize="10px" fontWeight="600" color="whiteAlpha.500" textTransform="uppercase" letterSpacing="0.06em" mb="2px">
+          scan to pay
         </Text>
         <Text fontFamily={FONT} fontSize="20px" fontWeight="700" color="white" letterSpacing="-0.5px">
           {fmt(price)}
         </Text>
-        <Text fontFamily={FONT} fontSize="11px" color="whiteAlpha.500" mt="1px">Scan to pay</Text>
+        <Text fontFamily={FONT} fontSize="11px" color="whiteAlpha.400" mt="1px">via bunq</Text>
       </Box>
     </Flex>
   );

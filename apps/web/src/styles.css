@@ -2,22 +2,37 @@
   box-sizing: border-box;
 }
 
-/* ── Color tokens ── */
+/* ─────────────────────────────────────────────────
+   Color tokens
+───────────────────────────────────────────────── */
 :root {
-  --c-bg:      #ffffff;
-  --c-surface: #f7f8fa;
+  --c-bg:      #f6f7fb;
+  --c-surface: #f0f1f5;
   --c-card:    #ffffff;
   --c-border:  #e8eaed;
   --c-text:    #0a0a0a;
   --c-muted:   #667085;
   --c-ink:     #0a0a0a;
   --c-ink-fg:  #ffffff;
+
+  /* Glass recipe — light */
+  --glass-bg:        rgba(255, 255, 255, 0.58);
+  --glass-border:    rgba(255, 255, 255, 0.76);
+  --glass-shadow:    0 2px 6px rgba(0,0,0,0.04), 0 10px 28px rgba(0,0,0,0.07);
+  --glass-inset:     inset 0 1px 0 rgba(255,255,255,0.98), inset 0 -1px 0 rgba(0,0,0,0.03);
+  --glass-shine:     rgba(255,255,255,0.68) 0%, rgba(255,255,255,0.18) 38%, transparent 68%;
+  --glass-spotlight: rgba(255, 255, 255, 0.14);
+  --glass-blur:      blur(22px) saturate(170%) brightness(103%);
+
+  /* Gradient orb colours — light */
+  --orb-1: rgba(198, 195, 224, 0.52);
+  --orb-2: rgba(193, 215, 222, 0.44);
+  --orb-3: rgba(222, 214, 204, 0.42);
 }
 
-/* System dark */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --c-bg:      #0a0a0a;
+    --c-bg:      #090909;
     --c-surface: #161616;
     --c-card:    #141414;
     --c-border:  #2a2a2a;
@@ -25,12 +40,23 @@
     --c-muted:   #888888;
     --c-ink:     #f0f0f0;
     --c-ink-fg:  #0a0a0a;
+
+    --glass-bg:        rgba(255, 255, 255, 0.042);
+    --glass-border:    rgba(255, 255, 255, 0.075);
+    --glass-shadow:    0 2px 8px rgba(0,0,0,0.35), 0 10px 36px rgba(0,0,0,0.45);
+    --glass-inset:     inset 0 1px 0 rgba(255,255,255,0.07), inset 0 -1px 0 rgba(0,0,0,0.25);
+    --glass-shine:     rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 42%, transparent 72%;
+    --glass-spotlight: rgba(255, 255, 255, 0.07);
+    --glass-blur:      blur(22px) saturate(140%) brightness(108%);
+
+    --orb-1: rgba(34, 30, 56, 0.95);
+    --orb-2: rgba(26, 40, 54, 0.9);
+    --orb-3: rgba(50, 34, 42, 0.88);
   }
 }
 
-/* Manual dark override */
 [data-theme="dark"] {
-  --c-bg:      #0a0a0a;
+  --c-bg:      #090909;
   --c-surface: #161616;
   --c-card:    #141414;
   --c-border:  #2a2a2a;
@@ -38,6 +64,18 @@
   --c-muted:   #888888;
   --c-ink:     #f0f0f0;
   --c-ink-fg:  #0a0a0a;
+
+  --glass-bg:        rgba(255, 255, 255, 0.042);
+  --glass-border:    rgba(255, 255, 255, 0.075);
+  --glass-shadow:    0 2px 8px rgba(0,0,0,0.35), 0 10px 36px rgba(0,0,0,0.45);
+  --glass-inset:     inset 0 1px 0 rgba(255,255,255,0.07), inset 0 -1px 0 rgba(0,0,0,0.25);
+  --glass-shine:     rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.02) 42%, transparent 72%;
+  --glass-spotlight: rgba(255, 255, 255, 0.07);
+  --glass-blur:      blur(22px) saturate(140%) brightness(108%);
+
+  --orb-1: rgba(34, 30, 56, 0.95);
+  --orb-2: rgba(26, 40, 54, 0.9);
+  --orb-3: rgba(50, 34, 42, 0.88);
 }
 
 html, body {
@@ -57,7 +95,210 @@ a {
   text-decoration: none;
 }
 
-/* ── Voice waveform ── */
+/* ─────────────────────────────────────────────────
+   Liquid glass
+───────────────────────────────────────────────── */
+
+/* Base glass (nav, modals) */
+.glass {
+  background: var(--glass-bg) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-color: var(--glass-border) !important;
+}
+
+/* Glass nav bar */
+.glass-nav {
+  background: var(--glass-bg) !important;
+  backdrop-filter: blur(28px) saturate(200%) brightness(102%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%) brightness(102%);
+  border-bottom: 1px solid var(--glass-border) !important;
+}
+
+/* Glass card */
+.glass-card {
+  background: var(--glass-bg) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border) !important;
+  box-shadow: var(--glass-shadow), var(--glass-inset) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Specular highlight (top-left sheen) */
+.glass-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(155deg, var(--glass-shine));
+  pointer-events: none;
+}
+
+/* ─────────────────────────────────────────────────
+   Gradient background orbs
+───────────────────────────────────────────────── */
+@keyframes orb-drift-1 {
+  0%, 100% { transform: translate(0px,   0px)  scale(1);    }
+  30%       { transform: translate(50px, -35px) scale(1.06); }
+  65%       { transform: translate(-25px, 22px) scale(0.97); }
+}
+
+@keyframes orb-drift-2 {
+  0%, 100% { transform: translate(0px,   0px)  scale(1);    }
+  40%       { transform: translate(-55px, 30px) scale(1.09); }
+  72%       { transform: translate(35px, -22px) scale(0.94); }
+}
+
+@keyframes orb-drift-3 {
+  0%, 100% { transform: translate(0px,   0px)  scale(1);    }
+  50%       { transform: translate(28px,  45px) scale(1.05); }
+}
+
+.grad-bg {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.grad-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  will-change: transform;
+}
+
+.orb-1 {
+  width: 720px;
+  height: 720px;
+  background: radial-gradient(circle, var(--orb-1), transparent 70%);
+  top: -220px;
+  left: -160px;
+  animation: orb-drift-1 20s ease-in-out infinite;
+}
+
+.orb-2 {
+  width: 540px;
+  height: 540px;
+  background: radial-gradient(circle, var(--orb-2), transparent 70%);
+  top: -120px;
+  right: -130px;
+  animation: orb-drift-2 24s ease-in-out infinite;
+  animation-delay: -9s;
+}
+
+.orb-3 {
+  width: 640px;
+  height: 640px;
+  background: radial-gradient(circle, var(--orb-3), transparent 70%);
+  bottom: -160px;
+  left: 28%;
+  animation: orb-drift-3 17s ease-in-out infinite;
+  animation-delay: -5s;
+}
+
+/* ─────────────────────────────────────────────────
+   Login page — orb colours
+───────────────────────────────────────────────── */
+:root {
+  --lorb-1: rgba(200, 188, 248, 0.72);
+  --lorb-2: rgba(178, 220, 244, 0.60);
+  --lorb-3: rgba(248, 222, 190, 0.62);
+  --lorb-4: rgba(236, 228, 255, 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --lorb-1: rgba(52, 38, 90, 1);
+    --lorb-2: rgba(28, 48, 82, 0.96);
+    --lorb-3: rgba(78, 44, 60, 0.92);
+    --lorb-4: rgba(22, 18, 42, 0.85);
+  }
+}
+[data-theme="dark"] {
+  --lorb-1: rgba(52, 38, 90, 1);
+  --lorb-2: rgba(28, 48, 82, 0.96);
+  --lorb-3: rgba(78, 44, 60, 0.92);
+  --lorb-4: rgba(22, 18, 42, 0.85);
+}
+
+@keyframes lorb-1 {
+  0%, 100% { transform: translate(0px,   0px)  scale(1);    }
+  35%       { transform: translate(55px, -40px) scale(1.07); }
+  68%       { transform: translate(-30px, 28px) scale(0.96); }
+}
+@keyframes lorb-2 {
+  0%, 100% { transform: translate(0px,   0px)  scale(1);    }
+  42%       { transform: translate(-60px, 35px) scale(1.1);  }
+  74%       { transform: translate(38px, -28px) scale(0.93); }
+}
+@keyframes lorb-3 {
+  0%, 100% { transform: translate(0px,   0px)  scale(1);    }
+  52%       { transform: translate(32px,  50px) scale(1.06); }
+}
+@keyframes lorb-4 {
+  0%, 100% { transform: translate(-50%, -50%) scale(1);    }
+  50%       { transform: translate(-50%, -50%) scale(1.12); }
+}
+
+.login-bg {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.lorb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(110px);
+  will-change: transform;
+}
+.lorb-1 {
+  width: 900px; height: 900px;
+  background: radial-gradient(circle, var(--lorb-1), transparent 70%);
+  top: -320px; left: -220px;
+  animation: lorb-1 22s ease-in-out infinite;
+}
+.lorb-2 {
+  width: 680px; height: 680px;
+  background: radial-gradient(circle, var(--lorb-2), transparent 70%);
+  top: -160px; right: -200px;
+  animation: lorb-2 26s ease-in-out infinite;
+  animation-delay: -11s;
+}
+.lorb-3 {
+  width: 820px; height: 820px;
+  background: radial-gradient(circle, var(--lorb-3), transparent 70%);
+  bottom: -220px; left: 12%;
+  animation: lorb-3 19s ease-in-out infinite;
+  animation-delay: -7s;
+}
+.lorb-4 {
+  width: 650px; height: 650px;
+  background: radial-gradient(circle, var(--lorb-4), transparent 70%);
+  top: 50%; left: 50%;
+  filter: blur(130px);
+  animation: lorb-4 16s ease-in-out infinite;
+  animation-delay: -4s;
+}
+
+/* Entrance animations */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.login-logo-in { animation: fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 0.05s; }
+.login-card-in { animation: fade-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 0.12s; }
+
+/* ─────────────────────────────────────────────────
+   Voice waveform
+───────────────────────────────────────────────── */
 @keyframes voice-bar {
   0%, 100% { transform: scaleY(0.15); }
   50%       { transform: scaleY(1); }
@@ -68,7 +309,9 @@ a {
   animation: voice-bar 0.7s ease-in-out infinite;
 }
 
-/* ── Payment celebration ── */
+/* ─────────────────────────────────────────────────
+   Payment celebration
+───────────────────────────────────────────────── */
 @keyframes payment-pop {
   0%   { opacity: 0; transform: scale(0.88); }
   12%  { opacity: 1; transform: scale(1.03); }
@@ -81,7 +324,9 @@ a {
   animation: payment-pop 3s ease forwards;
 }
 
-/* ── Live pulse dot ── */
+/* ─────────────────────────────────────────────────
+   Live pulse dot
+───────────────────────────────────────────────── */
 @keyframes pulse-ring {
   0%   { transform: scale(1);   opacity: 0.7; }
   100% { transform: scale(2.2); opacity: 0; }
@@ -92,6 +337,6 @@ a {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: #00D54B;
+  background: #0a0a0a;
   animation: pulse-ring 1.6s ease-out infinite;
 }

@@ -1,9 +1,10 @@
 import { useEffect } from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { api, eurosFromCents } from "../api";
-import { G, CARD, BORDER, TEXT, MUTED, FONT } from "../theme/tokens";
+import { TEXT, MUTED, FONT } from "../theme/tokens";
 import { ProductTileImage } from "./ProductTileImage";
 import { BunqQrPanel } from "./BunqQrPanel";
+import { GlassCard } from "./GlassCard";
 import type { CelebrationData } from "./PaymentCelebration";
 
 export type ListingStatus = "live" | "sold" | "draft";
@@ -71,28 +72,24 @@ export function ListingCard({
   const isSold = listing.status === "sold";
 
   return (
-    <Box
-      bg={CARD}
-      border="1px solid"
-      borderColor={BORDER}
+    <GlassCard
       borderRadius="12px"
-      overflow="hidden"
       cursor="pointer"
       onClick={onEdit}
-      _hover={{ borderColor: "var(--c-muted)", boxShadow: "0 4px 16px rgba(0,0,0,0.08)" }}
-      transition="all 180ms ease"
+      transition="transform 180ms ease, box-shadow 180ms ease"
+      _hover={{ transform: "translateY(-2px)" }}
     >
       {/* Image */}
       <Box position="relative">
         <ProductTileImage imageUrl={listing.imageUrl} title={listing.title} />
         <Box position="absolute" top="10px" right="10px">
           {isLive ? (
-            <Flex align="center" gap="5px" bg="white" borderRadius="20px" px="8px" py="4px" boxShadow="0 1px 4px rgba(0,0,0,0.12)">
+            <Flex align="center" gap="5px" bg="white" borderRadius="20px" px="8px" py="4px" boxShadow="0 1px 6px rgba(0,0,0,0.14)">
               <Box
-                bg={G}
+                bg="black"
                 borderRadius="full"
-                h="7px"
-                w="7px"
+                h="6px"
+                w="6px"
                 flexShrink={0}
                 position="relative"
                 className="live-pulse"
@@ -100,11 +97,11 @@ export function ListingCard({
               <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color="black">Live</Text>
             </Flex>
           ) : isSold ? (
-            <Box bg="#0a0a0a" borderRadius="20px" px="8px" py="4px">
+            <Box bg="rgba(0,0,0,0.75)" borderRadius="20px" px="8px" py="4px" style={{ backdropFilter: "blur(6px)" }}>
               <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color="white">Sold out</Text>
             </Box>
           ) : (
-            <Box bg="rgba(0,0,0,0.5)" borderRadius="20px" px="8px" py="4px">
+            <Box bg="rgba(0,0,0,0.45)" borderRadius="20px" px="8px" py="4px" style={{ backdropFilter: "blur(6px)" }}>
               <Text fontFamily={FONT} fontSize="11px" fontWeight="500" color="white">Draft</Text>
             </Box>
           )}
@@ -153,6 +150,6 @@ export function ListingCard({
 
         {listing.bunqTabUrl && <BunqQrPanel url={listing.bunqTabUrl} price={listing.price} />}
       </Box>
-    </Box>
+    </GlassCard>
   );
 }

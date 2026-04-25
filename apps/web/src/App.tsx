@@ -2,10 +2,9 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "reac
 import { Box, Flex, Grid, Image, SimpleGrid, Spinner, Text, Textarea } from "@chakra-ui/react";
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { api, centsFromEuros, dataUrlToBlob, eurosFromCents, type DropPublic } from "./api";
-import { G, DARK, INK_FG, BG, SURFACE, CARD, BORDER, TEXT, MUTED, FONT, PANEL } from "./theme/tokens";
+import { DARK, INK_FG, BG, SURFACE, CARD, BORDER, TEXT, MUTED, FONT, PANEL } from "./theme/tokens";
 import { BunqWordmark } from "./components/BunqWordmark";
-import { BunqQrPanel } from "./components/BunqQrPanel";
-import { ProductTileImage } from "./components/ProductTileImage";
+import { GlassCard } from "./components/GlassCard";
 import { VoiceWave } from "./components/VoiceWave";
 import { PaymentCelebration, type CelebrationData } from "./components/PaymentCelebration";
 import { ListingCard, type Listing } from "./components/ListingCard";
@@ -176,6 +175,7 @@ function IconArrow() {
   );
 }
 
+// ─── Dot cluster (animated background element on login) ──────────────────────
 // ─── Login ────────────────────────────────────────────────────────────────────
 function LoginPage() {
   const navigate = useNavigate();
@@ -188,137 +188,93 @@ function LoginPage() {
   };
 
   return (
-    <Grid
+    <Flex
       minH="100dvh"
-      templateColumns={{ base: "1fr", lg: "1fr 1fr" }}
+      bg={BG}
+      align="center"
+      justify="center"
+      position="relative"
+      overflow="hidden"
+      p={{ base: "24px", md: "40px" }}
     >
-      {/* Left: form */}
-      <Flex
-        direction="column"
-        justify="center"
-        p={{ base: "40px 24px", md: "60px 80px" }}
-        bg={BG}
-        position="relative"
-      >
-        {/* Theme toggle top-right of left panel */}
-        <Box position="absolute" top="20px" right="20px">
-          <ThemeToggle dark={dark} toggle={toggle} />
-        </Box>
+      {/* Mesh gradient background */}
+      <Box className="login-bg">
+        <Box className="lorb lorb-1" />
+        <Box className="lorb lorb-2" />
+        <Box className="lorb lorb-3" />
+        <Box className="lorb lorb-4" />
+      </Box>
 
-        <Box mb="48px">
-          <BunqWordmark subtitle="FlashDrop" />
-        </Box>
+      {/* Theme toggle */}
+      <Box position="absolute" top="20px" right="20px" zIndex={10}>
+        <ThemeToggle dark={dark} toggle={toggle} />
+      </Box>
 
-        <Box mb="32px">
-          <Text
-            fontFamily={FONT}
-            fontSize={{ base: "32px", md: "40px" }}
-            fontWeight="700"
-            color={TEXT}
-            letterSpacing="-1px"
-            lineHeight={1.15}
-            mb="12px"
-          >
-            Sell anything, right now.
+      {/* Content */}
+      <Flex direction="column" align="center" w="full" maxW="400px" position="relative" zIndex={1}>
+        {/* Wordmark */}
+        <Text
+          className="login-logo-in"
+          fontFamily={FONT} fontWeight="700" fontSize="18px"
+          color={TEXT} letterSpacing="-0.5px" mb="28px"
+        >
+          FlashDrop
+        </Text>
+
+        {/* Card */}
+        <GlassCard className="login-card-in" w="full" borderRadius="20px" p={{ base: "28px", md: "36px" }}>
+          <Text fontFamily={FONT} fontSize="22px" fontWeight="700" color={TEXT} letterSpacing="-0.5px" mb="6px">
+            Start selling
           </Text>
-          <Text fontFamily={FONT} fontSize="16px" color={MUTED} lineHeight={1.6}>
-            Snap a photo, say your pitch, get a live bunq payment link in seconds.
+          <Text fontFamily={FONT} fontSize="14px" color={MUTED} mb="28px" lineHeight={1.6}>
+            Snap a photo, describe your item, get a live payment link in seconds.
           </Text>
-        </Box>
 
-        <Box display="flex" flexDirection="column" gap="12px" maxW="400px">
-          <Box>
-            <Text fontFamily={FONT} fontSize="12px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.06em" mb="6px">
-              Seller name
-            </Text>
+          <Box display="flex" flexDirection="column" gap="10px">
             <Box
               as="input"
               {...inputBase as any}
-              placeholder="e.g. Sarah, Booth 12"
+              h="46px"
+              borderRadius="10px"
+              {...{ placeholder: "Your name or booth" } as any}
               value={name}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setName(e.target.value)}
               onKeyDown={(e: React.KeyboardEvent) => e.key === "Enter" && go()}
             />
+            <Box
+              as="button"
+              {...btnPrimary}
+              h="46px" gap="8px"
+              borderRadius="10px"
+              _hover={{ opacity: 0.88, transform: "translateY(-1px)", boxShadow: "0 6px 20px rgba(0,0,0,0.18)" }}
+              onClick={go}
+            >
+              Get started <IconArrow />
+            </Box>
           </Box>
 
           <Box
             as="button"
-            {...btnPrimary}
-            h="48px"
-            gap="8px"
-            onClick={go}
-            mt="4px"
-          >
-            Start selling <IconArrow />
-          </Box>
-
-          <Box
-            as="button"
-            {...btnOutline}
-            h="44px"
+            fontFamily={FONT} fontSize="13px" fontWeight="500"
+            bg="transparent" color={MUTED}
+            border="none" cursor="pointer" w="full" mt="16px" h="32px"
+            _hover={{ color: TEXT }}
+            transition="color 150ms ease"
             onClick={() => { setSellerId("demo-seller"); navigate("/dashboard"); }}
           >
             View demo
           </Box>
-        </Box>
+        </GlassCard>
 
-        <Flex gap="24px" mt="48px" flexWrap="wrap">
-          {["Camera-first", "Voice pitch", "AI listing copy", "bunq payment QR"].map((f) => (
-            <Flex key={f} align="center" gap="6px">
-              <Box w="5px" h="5px" borderRadius="50%" bg={MUTED} flexShrink={0} />
-              <Text fontFamily={FONT} fontSize="13px" color={MUTED}>{f}</Text>
-            </Flex>
-          ))}
-        </Flex>
-      </Flex>
-
-      {/* Right: always-dark branded panel */}
-      <Flex
-        display={{ base: "none", lg: "flex" }}
-        bg={PANEL}
-        direction="column"
-        justify="center"
-        align="center"
-        p="60px"
-        position="relative"
-        overflow="hidden"
-      >
-        <Box
-          position="absolute" inset={0} opacity={0.04}
-          backgroundImage="linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)"
-          backgroundSize="48px 48px"
-        />
-
-        {/* Mock product card — always white regardless of theme */}
-        <Box
-          position="relative" zIndex={1}
-          bg="white" borderRadius="16px"
-          w="full" maxW="360px"
-          boxShadow="0 40px 80px rgba(0,0,0,0.5)"
-          overflow="hidden"
+        <Text
+          className="login-card-in"
+          fontFamily={FONT} fontSize="12px" color={MUTED}
+          mt="24px" textAlign="center" letterSpacing="0.02em"
         >
-          <Box position="relative">
-            <ProductTileImage title="Campus Tote" />
-            <Flex
-              position="absolute" top="10px" right="10px"
-              align="center" gap="5px"
-              bg="white" borderRadius="20px" px="8px" py="4px"
-            >
-              <Box bg={G} borderRadius="full" h="7px" w="7px" className="live-pulse" position="relative" />
-              <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color="black">Live</Text>
-            </Flex>
-          </Box>
-          <Box p="16px">
-            <Flex justify="space-between" align="baseline" mb="4px">
-              <Text fontFamily={FONT} fontSize="15px" fontWeight="600" color="#0a0a0a">Campus Tote</Text>
-              <Text fontFamily={FONT} fontSize="15px" fontWeight="700" color="#0a0a0a">€ 12.00</Text>
-            </Flex>
-            <Text fontFamily={FONT} fontSize="13px" color="#667085" mb="12px">Hand-painted, 4 left at the booth.</Text>
-            <BunqQrPanel url="bunq.me/flashdrop/campus-tote" price="12.00" />
-          </Box>
-        </Box>
+          camera · voice · AI listing · bunq payments
+        </Text>
       </Flex>
-    </Grid>
+    </Flex>
   );
 }
 
@@ -357,51 +313,61 @@ function DashboardPage() {
   }, []);
 
   return (
-    <Box bg={BG} minH="100dvh" pb="120px">
-      {/* Nav */}
+    <Box bg={BG} minH="100dvh" pb="120px" position="relative">
+      {/* Animated gradient background */}
+      <Box className="grad-bg">
+        <Box className="grad-orb orb-1" />
+        <Box className="grad-orb orb-2" />
+        <Box className="grad-orb orb-3" />
+      </Box>
+
+      {/* Nav — liquid glass */}
       <Box
-        bg={CARD}
-        borderBottom="1px solid"
-        borderColor={BORDER}
-        px={{ base: "16px", md: "40px" }}
-        h="56px"
+        className="glass-nav"
+        position="sticky"
+        top={0}
+        zIndex={10}
+        px={{ base: "20px", md: "40px" }}
+        h="60px"
         display="flex"
         alignItems="center"
       >
         <Flex align="center" justify="space-between" w="full" maxW="1200px" mx="auto">
-          <Flex align="center" gap="16px" minW={0}>
-            <BunqWordmark subtitle="FlashDrop" />
-            {sellerId && (
-              <Box
-                display={{ base: "none", sm: "block" }}
-                h="20px" w="1px" bg={BORDER} flexShrink={0}
-              />
-            )}
-            {sellerId && (
-              <Text
-                display={{ base: "none", sm: "block" }}
-                fontFamily={FONT} fontSize="13px" color={MUTED}
-                overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap"
-                maxW="160px"
-              >
-                {sellerId}
-              </Text>
-            )}
-          </Flex>
+          {/* Wordmark */}
+          <BunqWordmark />
 
+          {/* Right controls */}
           <Flex align="center" gap="8px" flexShrink={0}>
-            <Flex
-              display={{ base: "none", md: "flex" }}
-              align="center" gap="6px"
-              px="10px" h="28px"
-              bg={SURFACE}
-              border="1px solid"
-              borderColor={BORDER}
-              borderRadius="20px"
-            >
-              <Box bg={G} borderRadius="full" h="6px" w="6px" flexShrink={0} />
-              <Text fontFamily={FONT} fontSize="11px" fontWeight="500" color={MUTED}>bunq connected</Text>
-            </Flex>
+            {/* Seller avatar pill */}
+            {sellerId && (
+              <Flex
+                display={{ base: "none", sm: "flex" }}
+                align="center" gap="8px"
+                px="10px" h="32px"
+                bg={SURFACE}
+                border="1px solid"
+                borderColor={BORDER}
+                borderRadius="20px"
+              >
+                <Box
+                  w="18px" h="18px" borderRadius="50%"
+                  bg={BORDER}
+                  display="flex" alignItems="center" justifyContent="center"
+                  flexShrink={0}
+                >
+                  <Text fontFamily={FONT} fontSize="10px" fontWeight="700" color={TEXT} lineHeight={1}>
+                    {sellerId[0]?.toUpperCase()}
+                  </Text>
+                </Box>
+                <Text
+                  fontFamily={FONT} fontSize="12px" fontWeight="500" color={MUTED}
+                  overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap"
+                  maxW="120px"
+                >
+                  {sellerId}
+                </Text>
+              </Flex>
+            )}
 
             <ThemeToggle dark={dark} toggle={toggle} />
 
@@ -413,15 +379,14 @@ function DashboardPage() {
               fontSize="12px"
               onClick={() => navigate("/")}
             >
-              <Text display={{ base: "none", sm: "inline" }}>Switch seller</Text>
-              <Text display={{ base: "inline", sm: "none" }}>Exit</Text>
+              Exit
             </Box>
           </Flex>
         </Flex>
       </Box>
 
       {/* Page body */}
-      <Box maxW="1200px" mx="auto" px={{ base: "16px", md: "40px" }} py={{ base: "24px", md: "32px" }}>
+      <Box maxW="1200px" mx="auto" px={{ base: "16px", md: "40px" }} py={{ base: "24px", md: "32px" }} position="relative" zIndex={1}>
 
         {/* Stats */}
         <SimpleGrid columns={3} gap={{ base: "10px", md: "16px" }} mb={{ base: "24px", md: "32px" }}>
@@ -430,11 +395,8 @@ function DashboardPage() {
             { label: "In stock",   value: stockCount },
             { label: "Sold out",   value: soldCount },
           ].map(({ label, value }) => (
-            <Box
+            <GlassCard
               key={label}
-              bg={CARD}
-              border="1px solid"
-              borderColor={BORDER}
               borderRadius="12px"
               p={{ base: "14px", md: "20px" }}
             >
@@ -451,7 +413,7 @@ function DashboardPage() {
               >
                 {value}
               </Text>
-            </Box>
+            </GlassCard>
           ))}
         </SimpleGrid>
 
@@ -480,13 +442,10 @@ function DashboardPage() {
         {loading ? (
           <Flex justify="center" py="80px"><Spinner size="xl" /></Flex>
         ) : listings.length === 0 ? (
-          <Box
-            bg={CARD} border="1px solid" borderColor={BORDER}
-            borderRadius="12px" p="64px 24px" textAlign="center"
-          >
+          <GlassCard borderRadius="12px" p="64px 24px" textAlign="center">
             <Text fontFamily={FONT} fontSize="16px" fontWeight="600" color={TEXT} mb="6px">No listings yet</Text>
             <Text fontFamily={FONT} fontSize="14px" color={MUTED}>Tap the button below to create your first drop.</Text>
-          </Box>
+          </GlassCard>
         ) : (
           <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} gap={{ base: "12px", md: "16px" }}>
             {listings.map((l) => (
@@ -686,15 +645,12 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
       style={{ backdropFilter: "blur(6px)" }}
     >
       <Box
-        bg={CARD}
-        border={{ base: "none", md: "1px solid" }}
-        borderColor={BORDER}
+        className="glass-card"
         borderRadius={{ base: "0", md: "16px" }}
         w="full"
         maxW="1040px"
         maxH={{ base: "100dvh", md: "calc(100dvh - 48px)" }}
         overflow="auto"
-        boxShadow={{ md: "0 32px 64px rgba(0,0,0,0.24)" }}
       >
         {/* Header */}
         <Flex
@@ -707,7 +663,7 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
           gap="12px"
           position="sticky"
           top={0}
-          bg={CARD}
+          className="glass-nav"
           zIndex={1}
         >
           <Flex align="center" gap="12px" flex={1} minW={0}>
