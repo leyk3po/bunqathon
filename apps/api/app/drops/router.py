@@ -32,7 +32,12 @@ def _translate(exc: service.DropError) -> HTTPException:
 
 @router.post("/generate-preview", response_model=GeneratePreviewResponse)
 def generate_preview(payload: GeneratePreviewRequest) -> GeneratePreviewResponse:
-    result = ai.generate_drop_copy(payload.pitch, payload.media_url)
+    try:
+        result = ai.generate_drop_copy(payload.pitch, payload.media_url)
+    except ai.AIConfigurationError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    except ai.AIUpstreamError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
     return GeneratePreviewResponse(
         title=result.title,
         description=result.description,
