@@ -264,7 +264,7 @@ export function ListingCard({
           lineHeight="1.5"
           mb="12px"
           overflow="hidden"
-          style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}
+          style={{ display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" }}
         >
           {listing.description || "No description yet."}
         </Text>

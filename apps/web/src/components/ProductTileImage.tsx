@@ -6,7 +6,8 @@ export function ProductTileImage({ imageUrl, title }: { imageUrl?: string; title
     return (
       <Image
         alt={title}
-        borderRadius="8px"
+        borderTopRadius="8px"
+        borderBottomRadius="0"
         h="200px"
         objectFit="cover"
         src={imageUrl}
@@ -19,7 +20,8 @@ export function ProductTileImage({ imageUrl, title }: { imageUrl?: string; title
     <Flex
       align="center"
       bg={PANEL}
-      borderRadius="8px"
+      borderTopRadius="8px"
+      borderBottomRadius="0"
       h="200px"
       justify="center"
       overflow="hidden"

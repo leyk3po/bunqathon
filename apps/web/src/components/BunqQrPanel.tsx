@@ -1,5 +1,5 @@
 import { Box, Flex, Link, QrCode, Text } from "@chakra-ui/react";
-import { PANEL, FONT } from "../theme/tokens";
+import { CARD, BORDER, TEXT, MUTED, FONT } from "../theme/tokens";
 
 function fmt(price: string) {
   const n = Number(price);
@@ -17,7 +17,9 @@ export function BunqQrPanel({
 }) {
   return (
     <Flex
-      bg={PANEL}
+      bg={CARD}
+      border="1px solid"
+      borderColor={BORDER}
       borderRadius="10px"
       align="start"
       gap="14px"
@@ -40,16 +42,16 @@ export function BunqQrPanel({
         </QrCode.Frame>
       </QrCode.Root>
       <Box minW={0}>
-        <Text fontFamily={FONT} fontSize="10px" fontWeight="600" color="whiteAlpha.500" textTransform="uppercase" letterSpacing="0.06em" mb="2px">
+        <Text fontFamily={FONT} fontSize="10px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.06em" mb="2px">
           scan to pay
         </Text>
-        <Text fontFamily={FONT} fontSize="20px" fontWeight="700" color="white" letterSpacing="-0.5px">
+        <Text fontFamily={FONT} fontSize="20px" fontWeight="700" color={TEXT} letterSpacing="-0.5px">
           {fmt(price)}
         </Text>
-        <Text fontFamily={FONT} fontSize="11px" color="whiteAlpha.400" mt="1px">
+        <Text fontFamily={FONT} fontSize="11px" color={MUTED} mt="1px">
           opens the buyer checkout
         </Text>
-        <Text fontFamily={FONT} fontSize="10px" color="whiteAlpha.400" mt="6px" lineHeight="1.45">
+        <Text fontFamily={FONT} fontSize="10px" color={MUTED} mt="6px" lineHeight="1.45">
           Sandbox demo: buyer payment is mocked, seller callback behavior stays realistic.
         </Text>
         {bunqUrl && (
@@ -59,7 +61,7 @@ export function BunqQrPanel({
             rel="noreferrer"
             fontFamily={FONT}
             fontSize="10px"
-            color="white"
+            color={TEXT}
             textDecoration="underline"
             textUnderlineOffset="2px"
             display="inline-block"
