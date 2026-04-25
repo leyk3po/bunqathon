@@ -66,17 +66,23 @@ def create_drop(
 @router.get("", response_model=list[DropPublic])
 def list_drops(
     db: Session = Depends(get_db),
-    state: DropState | None = Query(default=None),
+    state_filter: list[DropState] | None = Query(default=None, alias="state"),
+    status_filter: list[DropState] | None = Query(default=None, alias="status"),
     seller_id: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     current_seller: Seller | None = Depends(get_optional_current_seller),
 ) -> list[Drop]:
     if seller_id is not None:
         if current_seller is None:
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "authentication required")
-        if seller_id != current_seller.id:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "cannot view another seller's listings")
-    return service.list_drops(db, state=state, seller_id=seller_id, limit=limit)
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authentication required to filter by seller")
+        if current_seller.id != seller_id:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot list drops for another seller")
+    return service.list_drops(
+        db,
+        states=status_filter or state_filter,
+        seller_id=seller_id,
+        limit=limit,
+    )
 
 
 @router.get("/{slug}/events", response_model=list[EventLogPublic])

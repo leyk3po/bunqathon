@@ -1,18 +1,11 @@
-import { Text } from "@chakra-ui/react";
-import { FONT, TEXT } from "../theme/tokens";
-
-export function BunqWordmark({ subtitle: _subtitle }: { subtitle?: string } = {}) {
+export function BunqWordmark() {
   return (
-    <Text
-      fontFamily={FONT}
-      fontWeight="700"
-      fontSize="16px"
-      color={TEXT}
-      letterSpacing="-0.5px"
-      userSelect="none"
-      flexShrink={0}
-    >
-      FlashDrop
-    </Text>
+    <img
+      src="/logo.png"
+      alt="FlashDrop"
+      className="logo-img"
+      style={{ height: "100px", width: "auto", display: "block", userSelect: "none" }}
+      draggable={false}
+    />
   );
 }
