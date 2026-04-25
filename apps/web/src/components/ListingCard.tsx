@@ -95,6 +95,15 @@ export function ListingCard({
           title: listing.title,
           amount: fmt(eurosFromCents(data.amount_cents ?? Math.round(Number(listing.price) * 100))),
         });
+        // Belt + suspenders: re-fetch the canonical drop in case the SSE state
+        // didn't propagate (e.g. listener torn down between events).
+        api.getDrop(listing.slug).then((fresh) => {
+          onUpdate({
+            stock: Math.max(0, fresh.inventory),
+            state: fresh.state,
+            status: listingStatusFromDropState(fresh.state),
+          });
+        }).catch(() => {});
       } catch { /* ignore */ }
     });
 
