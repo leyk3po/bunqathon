@@ -35,11 +35,15 @@ export function ProductTileImage({
   imageUrls,
   title,
   h = "200px",
+  objectFit = "cover",
+  borderRadius = "8px 8px 0 0",
 }: {
   imageUrl?: string;
   imageUrls?: string[];
   title: string;
   h?: string;
+  objectFit?: "cover" | "contain";
+  borderRadius?: string;
 }) {
   const [idx, setIdx] = useState(0);
   const images = imageUrls && imageUrls.length > 0 ? imageUrls : imageUrl ? [imageUrl] : [];
@@ -50,12 +54,12 @@ export function ProductTileImage({
   const next = (e: React.MouseEvent) => { e.stopPropagation(); setIdx((i) => (i + 1) % images.length); };
 
   return (
-    <Box position="relative" h={h} overflow="hidden" borderTopRadius="8px">
+    <Box position="relative" h={h} overflow="hidden" style={{ borderRadius }}>
       <Image
         alt={title}
         h={h}
         w="full"
-        objectFit="cover"
+        objectFit={objectFit}
         src={images[idx]}
         display="block"
         style={{ transition: "opacity 0.15s ease" }}

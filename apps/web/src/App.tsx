@@ -1868,11 +1868,14 @@ function LiveWallPage() {
 
             {/* Image card */}
             <Box className="glass-card" borderRadius="20px" overflow="hidden" position="relative">
-              {drop.media_url ? (
-                <img
-                  src={drop.media_url}
-                  alt={drop.title}
-                  style={{ width: "100%", height: "auto", display: "block", maxHeight: "30vh", objectFit: "contain" }}
+              {drop.media_url || (drop.media_urls && drop.media_urls.length > 0) ? (
+                <ProductTileImage
+                  imageUrl={drop.media_url ?? ""}
+                  imageUrls={drop.media_urls ?? []}
+                  title={drop.title}
+                  h="30vh"
+                  objectFit="contain"
+                  borderRadius="0"
                 />
               ) : (
                 <Box h="260px" bg={SURFACE} display="flex" alignItems="center" justifyContent="center">
@@ -2135,7 +2138,13 @@ function BuyerCheckoutPage() {
             }
           }}
         >
-          <ProductTileImage imageUrl={drop.media_url ?? ""} title={drop.title} />
+          <ProductTileImage
+            imageUrl={drop.media_url ?? ""}
+            imageUrls={drop.media_urls ?? []}
+            title={drop.title}
+            h="220px"
+            borderRadius="0"
+          />
         </Box>
         <Box p={{ base: "22px", md: "28px" }}>
           <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.08em">
