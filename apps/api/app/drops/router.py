@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.auth.models import Seller
 from app.auth.service import get_current_seller, get_optional_current_seller
 from app.core.database import get_db
+from app.drops import haggle as haggle_service
 from app.drops import service
 from app.drops.models import Drop, DropState
 from app.drops.schemas import (
@@ -16,6 +17,8 @@ from app.drops.schemas import (
     DropUpdate,
     GeneratePreviewRequest,
     GeneratePreviewResponse,
+    HaggleRequest,
+    HaggleResponse,
 )
 from app.integrations import bunq
 from app.integrations import ai
@@ -48,6 +51,7 @@ def generate_preview(payload: GeneratePreviewRequest) -> GeneratePreviewResponse
         description=result.description,
         price_cents=result.price_cents,
         currency=result.currency,
+        floor_price_cents=result.floor_price_cents,
     )
 
 
@@ -134,6 +138,24 @@ def publish_drop(
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
     except service.DropError as exc:
         raise _translate(exc) from exc
+
+
+@router.post("/{slug}/haggle", response_model=HaggleResponse)
+def haggle_with_drop(slug: str, payload: HaggleRequest, db: Session = Depends(get_db)) -> HaggleResponse:
+    try:
+        drop = service.get_by_slug(db, slug)
+    except service.DropError as exc:
+        raise _translate(exc) from exc
+    if drop.state != DropState.live:
+        raise HTTPException(status.HTTP_409_CONFLICT, "drop is not live")
+    history = [haggle_service.HaggleTurn(role=t.role, text=t.text) for t in payload.history]
+    try:
+        result = haggle_service.negotiate(drop, payload.message, history)
+    except ai.AIConfigurationError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    except ai.AIUpstreamError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    return HaggleResponse(reply=result.reply, offer_cents=result.offer_cents, deal_cents=result.deal_cents)
 
 
 @router.post("/{drop_id}/mock-payment", response_model=DropDetail)

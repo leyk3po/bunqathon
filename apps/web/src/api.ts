@@ -36,6 +36,7 @@ export type DropPublic = {
   title: string;
   description: string;
   price_cents: number;
+  floor_price_cents: number | null;
   currency: string;
   inventory: number;
   sold_count: number;
@@ -77,6 +78,7 @@ export type GeneratePreviewResponse = {
   description: string;
   price_cents: number;
   currency: string;
+  floor_price_cents: number | null;
 };
 
 export type SellerPublic = {
@@ -202,6 +204,7 @@ export const api = {
     description?: string;
     pitch?: string | null;
     price_cents: number;
+    floor_price_cents?: number | null;
     currency?: string;
     inventory: number;
     media_url?: string | null;
@@ -234,6 +237,15 @@ export const api = {
 
   mockPayment: (id: string): Promise<DropDetail> =>
     request<DropDetail>(`/drops/${encodeURIComponent(id)}/mock-payment`, { method: "POST" }),
+
+  haggle: (
+    slug: string,
+    body: { message: string; history: { role: "user" | "assistant"; text: string }[] },
+  ): Promise<{ reply: string; offer_cents: number | null; deal_cents: number | null }> =>
+    request(`/drops/${encodeURIComponent(slug)}/haggle`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   archive: (id: string): Promise<DropDetail> =>
     request<DropDetail>(`/drops/${encodeURIComponent(id)}/archive`, { method: "POST" }),

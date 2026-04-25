@@ -6,6 +6,7 @@ import { G, DARK, INK_FG, BG, SURFACE, CARD, BORDER, TEXT, MUTED, FONT, PANEL } 
 import HeroPage from "./components/HeroPage";
 import { BunqWordmark } from "./components/BunqWordmark";
 import { GlassCard } from "./components/GlassCard";
+import { HagglePanel } from "./components/HagglePanel";
 import { ProductTileImage } from "./components/ProductTileImage";
 import { VoiceWave } from "./components/VoiceWave";
 import { PaymentCelebration, type CelebrationData } from "./components/PaymentCelebration";
@@ -118,12 +119,12 @@ function makeLocalDraft(d: DraftListing): DraftListing {
 
 type DraftListing = {
   imageUrl: string; prompt: string; title: string;
-  description: string; price: string; stock: number;
+  description: string; price: string; floorPrice: string; stock: number;
   category: string; audioUrl?: string; expiresDate?: string; expiresTime?: string;
 };
 
 const emptyDraft: DraftListing = {
-  imageUrl: "", prompt: "", title: "", description: "", price: "", stock: 1, category: "Quick drop",
+  imageUrl: "", prompt: "", title: "", description: "", price: "", floorPrice: "", stock: 1, category: "Quick drop",
 };
 
 // ─── Theme toggle ─────────────────────────────────────────────────────────────
@@ -1004,7 +1005,7 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
       const mediaUrl = await ensureUploaded();
       const pitch = draft.prompt.trim() || "Limited drop, available now.";
       const preview = await api.generatePreview(pitch, mediaUrl);
-      setDraft((d) => ({ ...d, title: preview.title, description: preview.description, price: eurosFromCents(preview.price_cents) }));
+      setDraft((d) => ({ ...d, title: preview.title, description: preview.description, price: eurosFromCents(preview.price_cents), floorPrice: preview.floor_price_cents != null ? eurosFromCents(preview.floor_price_cents) : d.floorPrice }));
     } catch {
       setApiError("AI unavailable — fill in the details below.");
       setDraft((d) => makeLocalDraft(d));
@@ -1019,7 +1020,8 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
       const expiresIso = (draft.expiresDate && draft.expiresTime)
         ? new Date(`${draft.expiresDate}T${draft.expiresTime}`).toISOString()
         : null;
-      const created  = await api.createDrop({ title: draft.title.trim() || titleFromPrompt(draft.prompt), description: draft.description.trim(), pitch: draft.prompt.trim() || null, price_cents: centsFromEuros(draft.price), inventory: Math.max(1, draft.stock), media_url: mediaUrl, expires_at: expiresIso });
+      const floorCents = draft.floorPrice.trim() ? centsFromEuros(draft.floorPrice) : null;
+      const created  = await api.createDrop({ title: draft.title.trim() || titleFromPrompt(draft.prompt), description: draft.description.trim(), pitch: draft.prompt.trim() || null, price_cents: centsFromEuros(draft.price), floor_price_cents: floorCents, inventory: Math.max(1, draft.stock), media_url: mediaUrl, expires_at: expiresIso });
       const live     = await api.publish(created.id);
       onPost({ id: live.id, slug: live.slug, title: live.title, description: live.description, price: eurosFromCents(live.price_cents), stock: live.inventory, category: draft.category, imageUrl: draft.imageUrl, prompt: draft.prompt, status: "live", state: live.state, createdAt: nowTime(), audioUrl: draft.audioUrl, bunqTabUrl: live.bunq_tab_url, expiresAt: live.expires_at ?? undefined });
       onClose();
@@ -1784,6 +1786,7 @@ function BuyerCheckoutPage() {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState("");
+  const [haggleCents, setHaggleCents] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -1847,14 +1850,40 @@ function BuyerCheckoutPage() {
             {drop.description || "Complete the sandbox buyer flow below."}
           </Text>
 
-          <Flex align="baseline" justify="space-between" mt="20px" mb="18px">
-            <Text fontFamily={FONT} fontSize="30px" fontWeight="700" color={TEXT} letterSpacing="-0.7px">
-              € {eurosFromCents(drop.price_cents)}
-            </Text>
+          <Flex align="baseline" justify="space-between" mt="20px" mb="18px" gap="16px" wrap="wrap">
+            <Box>
+              {haggleCents != null && haggleCents !== drop.price_cents ? (
+                <Flex align="baseline" gap="10px">
+                  <Text fontFamily={FONT} fontSize="30px" fontWeight="700" color={TEXT} letterSpacing="-0.7px">
+                    € {eurosFromCents(haggleCents)}
+                  </Text>
+                  <Text fontFamily={FONT} fontSize="14px" color={MUTED} textDecoration="line-through">
+                    € {eurosFromCents(drop.price_cents)}
+                  </Text>
+                  <Box bg={G} color="black" fontFamily={FONT} fontSize="10px" fontWeight="800" letterSpacing="0.16em" textTransform="uppercase" px="6px" py="3px" borderRadius="4px">
+                    Haggled
+                  </Box>
+                </Flex>
+              ) : (
+                <Text fontFamily={FONT} fontSize="30px" fontWeight="700" color={TEXT} letterSpacing="-0.7px">
+                  € {eurosFromCents(drop.price_cents)}
+                </Text>
+              )}
+            </Box>
             <Text fontFamily={FONT} fontSize="12px" color={MUTED}>
               {Math.max(0, drop.inventory)} left
             </Text>
           </Flex>
+
+          {checkoutState === "ready" && (
+            <Box mb="18px">
+              <HagglePanel
+                slug={drop.slug}
+                listedPriceCents={drop.price_cents}
+                onDeal={(cents) => setHaggleCents(cents)}
+              />
+            </Box>
+          )}
 
           <Box
             bg={SURFACE}
@@ -1885,7 +1914,15 @@ function BuyerCheckoutPage() {
             cursor={paying || checkoutState !== "ready" ? "not-allowed" : "pointer"}
             onClick={paying || checkoutState !== "ready" ? undefined : handlePay}
           >
-            {checkoutState === "paid" ? "Already paid" : checkoutState === "unavailable" ? "Unavailable" : paying ? "Processing payment…" : "Pay now"}
+            {checkoutState === "paid"
+              ? "Already paid"
+              : checkoutState === "unavailable"
+              ? "Unavailable"
+              : paying
+              ? "Processing payment…"
+              : haggleCents != null && haggleCents !== drop.price_cents
+              ? `Pay haggled € ${eurosFromCents(haggleCents)}`
+              : "Pay now"}
           </Box>
 
           <Box mt="14px">

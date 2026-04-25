@@ -76,6 +76,7 @@ def create_drop(db: Session, payload: DropCreate) -> Drop:
         description=payload.description,
         pitch=payload.pitch,
         price_cents=payload.price_cents,
+        floor_price_cents=payload.floor_price_cents,
         currency=payload.currency.upper(),
         inventory=payload.inventory,
         media_url=payload.media_url,

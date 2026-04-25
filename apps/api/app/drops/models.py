@@ -51,6 +51,7 @@ class Drop(Base):
     pitch: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     price_cents: Mapped[int] = mapped_column(Integer, default=0)
+    floor_price_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
     currency: Mapped[str] = mapped_column(String(3), default="EUR")
 
     inventory: Mapped[int] = mapped_column(Integer, default=1)
