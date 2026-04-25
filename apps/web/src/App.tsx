@@ -386,15 +386,16 @@ function LoginPage() {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
-type SaleNotification = { id: string; title: string; amount: string; time: string; read: boolean };
+type SaleNotification = { id: string; title: string; amount: string; time: string; read: boolean; slug?: string };
 
 function notifFromApi(n: NotificationPublic): SaleNotification {
   return {
     id: n.id,
     title: n.drop_title,
     amount: `€ ${(n.amount_cents / 100).toFixed(2)}`,
-    time: new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(n.created_at)),
+    time: new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(n.created_at)),
     read: n.read,
+    slug: n.drop_slug ?? undefined,
   };
 }
 
@@ -615,54 +616,105 @@ function DashboardPage() {
               </Box>
 
               {notifOpen && (
-                <Box
-                  position="absolute"
-                  top="calc(100% + 8px)"
-                  right={0}
-                  w="300px"
-                  bg={CARD}
-                  border="1px solid"
-                  borderColor={BORDER}
-                  borderRadius="12px"
-                  boxShadow="0 8px 32px rgba(0,0,0,0.16)"
-                  zIndex={50}
-                  overflow="hidden"
-                >
-                  <Box px="14px" py="10px" borderBottom="1px solid" borderColor={BORDER}>
-                    <Text fontFamily={FONT} fontSize="12px" fontWeight="700" color={TEXT} textTransform="uppercase" letterSpacing="0.06em">
-                      Sales
-                    </Text>
+                <>
+                  {/* Mobile backdrop */}
+                  <Box
+                    display={{ base: "block", md: "none" }}
+                    position="fixed"
+                    inset={0}
+                    bg="rgba(0,0,0,0.4)"
+                    zIndex={49}
+                    onClick={() => setNotifOpen(false)}
+                    style={{ backdropFilter: "blur(2px)" }}
+                  />
+
+                  {/* Panel — bottom sheet on mobile, dropdown on desktop */}
+                  <Box
+                    position={{ base: "fixed", md: "absolute" }}
+                    bottom={{ base: 0, md: "auto" }}
+                    top={{ base: "auto", md: "calc(100% + 8px)" }}
+                    left={{ base: 0, md: "auto" }}
+                    right={{ base: 0, md: 0 }}
+                    w={{ base: "100%", md: "340px" }}
+                    bg={CARD}
+                    border="1px solid"
+                    borderColor={BORDER}
+                    borderRadius={{ base: "20px 20px 0 0", md: "14px" }}
+                    boxShadow="0 -4px 40px rgba(0,0,0,0.18)"
+                    zIndex={50}
+                    overflow="hidden"
+                  >
+                    {/* Handle for mobile */}
+                    <Box display={{ base: "flex", md: "none" }} justifyContent="center" pt="12px" pb="4px">
+                      <Box w="36px" h="4px" borderRadius="2px" bg={BORDER} />
+                    </Box>
+
+                    {/* Header */}
+                    <Flex px="16px" py="12px" borderBottom="1px solid" borderColor={BORDER} align="center" justify="space-between">
+                      <Text fontFamily={FONT} fontSize="13px" fontWeight="700" color={TEXT} textTransform="uppercase" letterSpacing="0.06em">
+                        Sales
+                      </Text>
+                      {notifications.length > 0 && (
+                        <Text fontFamily={FONT} fontSize="11px" color={MUTED}>
+                          {notifications.length} total
+                        </Text>
+                      )}
+                    </Flex>
+
+                    {/* Body */}
+                    {notifications.length === 0 ? (
+                      <Box px="16px" py="32px" textAlign="center">
+                        <Text fontFamily={FONT} fontSize="14px" color={MUTED}>No sales yet</Text>
+                        <Text fontFamily={FONT} fontSize="12px" color={MUTED} mt="4px">Sales appear here in real time</Text>
+                      </Box>
+                    ) : (
+                      <Box maxH={{ base: "60dvh", md: "360px" }} overflowY="auto">
+                        {notifications.map((n) => (
+                          <Box
+                            key={n.id}
+                            as={n.slug ? "button" : "div"}
+                            display="block"
+                            w="full"
+                            textAlign="left"
+                            px="16px"
+                            py="14px"
+                            borderBottom="1px solid"
+                            borderColor={BORDER}
+                            bg={n.read ? "transparent" : SURFACE}
+                            cursor={n.slug ? "pointer" : "default"}
+                            _hover={n.slug ? { bg: SURFACE } : {}}
+                            _last={{ borderBottom: "none" }}
+                            onClick={n.slug ? () => { setNotifOpen(false); navigate(`/wall/${n.slug}`); } : undefined}
+                          >
+                            <Flex justify="space-between" align="flex-start" gap="12px">
+                              {/* Left: green sale dot + title */}
+                              <Flex align="center" gap="10px" minW={0}>
+                                <Box w="8px" h="8px" borderRadius="50%" bg="#16a34a" flexShrink={0} mt="2px" />
+                                <Box minW={0}>
+                                  <Text fontFamily={FONT} fontSize="14px" fontWeight="600" color={TEXT} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+                                    {n.title}
+                                  </Text>
+                                  <Text fontFamily={FONT} fontSize="12px" color={MUTED} mt="2px">{n.time}</Text>
+                                </Box>
+                              </Flex>
+                              {/* Right: amount + arrow */}
+                              <Flex align="center" gap="6px" flexShrink={0}>
+                                <Text fontFamily={FONT} fontSize="15px" fontWeight="700" color="#16a34a">
+                                  {n.amount}
+                                </Text>
+                                {n.slug && (
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ color: "var(--c-muted)", flexShrink: 0 }}>
+                                    <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                  </svg>
+                                )}
+                              </Flex>
+                            </Flex>
+                          </Box>
+                        ))}
+                      </Box>
+                    )}
                   </Box>
-                  {notifications.length === 0 ? (
-                    <Box px="14px" py="20px" textAlign="center">
-                      <Text fontFamily={FONT} fontSize="13px" color={MUTED}>No sales yet</Text>
-                    </Box>
-                  ) : (
-                    <Box maxH="320px" overflowY="auto">
-                      {notifications.map((n) => (
-                        <Box
-                          key={n.id}
-                          px="14px"
-                          py="10px"
-                          borderBottom="1px solid"
-                          borderColor={BORDER}
-                          bg={n.read ? "transparent" : SURFACE}
-                          _last={{ borderBottom: "none" }}
-                        >
-                          <Flex justify="space-between" align="center" mb="2px">
-                            <Text fontFamily={FONT} fontSize="13px" fontWeight="600" color={TEXT} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap" maxW="180px">
-                              {n.title}
-                            </Text>
-                            <Text fontFamily={FONT} fontSize="13px" fontWeight="700" color="#16a34a">
-                              {n.amount}
-                            </Text>
-                          </Flex>
-                          <Text fontFamily={FONT} fontSize="11px" color={MUTED}>{n.time}</Text>
-                        </Box>
-                      ))}
-                    </Box>
-                  )}
-                </Box>
+                </>
               )}
             </Box>
 

@@ -349,6 +349,7 @@ def apply_payment_event(
                 db,
                 seller_id=drop.seller_id,
                 drop_id=drop.id,
+                drop_slug=drop.slug,
                 drop_title=drop.title,
                 amount_cents=amount_cents if amount_cents is not None else drop.price_cents,
                 currency=drop.currency,

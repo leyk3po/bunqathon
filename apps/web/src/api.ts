@@ -65,6 +65,7 @@ export type MediaUploadResponse = {
 export type NotificationPublic = {
   id: string;
   drop_id: string | null;
+  drop_slug: string | null;
   drop_title: string;
   amount_cents: number;
   currency: string;

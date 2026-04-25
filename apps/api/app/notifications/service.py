@@ -6,10 +6,11 @@ from sqlalchemy.orm import Session
 from app.notifications.models import Notification
 
 
-def create_notification(db: Session, *, seller_id: str, drop_id: str, drop_title: str, amount_cents: int, currency: str) -> None:
+def create_notification(db: Session, *, seller_id: str, drop_id: str, drop_slug: str | None, drop_title: str, amount_cents: int, currency: str) -> None:
     db.add(Notification(
         seller_id=seller_id,
         drop_id=drop_id,
+        drop_slug=drop_slug,
         drop_title=drop_title,
         amount_cents=amount_cents,
         currency=currency,

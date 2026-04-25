@@ -10,6 +10,7 @@ class NotificationPublic(BaseModel):
 
     id: str
     drop_id: str | None
+    drop_slug: str | None
     drop_title: str
     amount_cents: int
     currency: str

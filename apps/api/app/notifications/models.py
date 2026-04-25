@@ -23,6 +23,7 @@ class Notification(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     seller_id: Mapped[str] = mapped_column(String(36), index=True)
     drop_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("drops.id", ondelete="SET NULL"), nullable=True, index=True)
+    drop_slug: Mapped[str | None] = mapped_column(String(64), nullable=True)
     drop_title: Mapped[str] = mapped_column(Text)
     amount_cents: Mapped[int] = mapped_column(Integer)
     currency: Mapped[str] = mapped_column(String(3), default="EUR")
