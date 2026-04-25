@@ -1029,6 +1029,24 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
             {draft.audioUrl && (
               <Box mt="10px">
                 <audio controls src={draft.audioUrl} style={{ width: "100%", borderRadius: "8px" }} />
+                <Box
+                  as="button"
+                  mt="6px"
+                  fontFamily={FONT}
+                  fontSize="12px"
+                  color={MUTED}
+                  bg="transparent"
+                  border="none"
+                  cursor="pointer"
+                  p="0"
+                  _hover={{ color: "#dc2626" }}
+                  onClick={() => {
+                    URL.revokeObjectURL(draft.audioUrl!);
+                    setDraft((d) => ({ ...d, audioUrl: undefined, prompt: "" }));
+                  }}
+                >
+                  ✕ Delete recording &amp; re-record
+                </Box>
               </Box>
             )}
 
