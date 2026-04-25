@@ -88,7 +88,7 @@ def _anthropic_generate_drop_copy(pitch: str, media_url: str | None = None) -> G
         "max_tokens": 300,
         "system": (
             "Return a compact, commercially useful draft for a temporary mobile storefront. "
-            "Do not be generic. Prefer concrete, energetic phrasing. "
+            "Do not be generic. Prefer concrete, energetic phrasing. Remember to count the amount of objects being sold in the picture correctly. "
             "Output must be valid JSON matching the provided schema."
         ),
         "messages": [

@@ -9,6 +9,8 @@ const PUBLIC_APP_BASE =
 export const apiUrl = (path: string) => `${BASE}${PREFIX}${path.startsWith("/") ? path : `/${path}`}`;
 export const buyerCheckoutUrl = (slug: string) =>
   `${PUBLIC_APP_BASE}/buy/${encodeURIComponent(slug)}`;
+export const liveWallUrl = (slug: string) =>
+  `${PUBLIC_APP_BASE}/wall/${encodeURIComponent(slug)}`;
 
 export type DropState =
   | "draft"

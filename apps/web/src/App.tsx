@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
-import { Box, Flex, Grid, Image, Link, SimpleGrid, Spinner, Text, Textarea } from "@chakra-ui/react";
+import { Box, Flex, Grid, Image, Link, QrCode, SimpleGrid, Spinner, Text, Textarea } from "@chakra-ui/react";
 import { BrowserRouter, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { api, centsFromEuros, dataUrlToBlob, eurosFromCents, type DropDetail, type DropPublic, type DropState } from "./api";
-import { DARK, INK_FG, BG, SURFACE, CARD, BORDER, TEXT, MUTED, FONT, PANEL } from "./theme/tokens";
+import { api, buyerCheckoutUrl, centsFromEuros, dataUrlToBlob, eurosFromCents, type DropDetail, type DropPublic, type DropState } from "./api";
+import { G, DARK, INK_FG, BG, SURFACE, CARD, BORDER, TEXT, MUTED, FONT, PANEL } from "./theme/tokens";
 import { BunqWordmark } from "./components/BunqWordmark";
 import { GlassCard } from "./components/GlassCard";
 import { ProductTileImage } from "./components/ProductTileImage";
@@ -49,7 +49,7 @@ function dropToListing(drop: DropPublic): Listing {
   return {
     id: drop.id, slug: drop.slug, title: drop.title,
     description: drop.description ?? "", price: eurosFromCents(drop.price_cents),
-    stock: drop.inventory - drop.sold_count, category: "FlashDrop",
+    stock: drop.inventory, category: "FlashDrop",
     imageUrl: drop.media_url ?? "", prompt: "", status, state: drop.state,
     createdAt: new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(drop.created_at)),
     bunqTabUrl: drop.bunq_tab_url,
@@ -64,6 +64,20 @@ function checkoutStatusFromState(state: DropState): "ready" | "paid" | "unavaila
   if (state === "sold_out" || state === "partially_sold") return "paid";
   if (state === "live") return "ready";
   return "unavailable";
+}
+
+function dropStateLabel(state: DropState): string {
+  switch (state) {
+    case "live": return "Live now";
+    case "partially_sold": return "Selling fast";
+    case "sold_out": return "Sold out";
+    case "paused": return "Paused";
+    case "review":
+    case "processing": return "Preparing";
+    case "expired": return "Expired";
+    case "archived": return "Archived";
+    default: return "Draft";
+  }
 }
 
 function titleFromPrompt(p: string) {
@@ -886,6 +900,508 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
   );
 }
 
+type WallActivity = {
+  id: string;
+  text: string;
+  time: string;
+  tone: "sale" | "state" | "info";
+};
+
+function LiveWallPage() {
+  const { slug = "" } = useParams();
+  const navigate = useNavigate();
+  const [drop, setDrop] = useState<DropDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [activity, setActivity] = useState<WallActivity[]>([]);
+  const [celebration, setCelebration] = useState<CelebrationData | null>(null);
+  const dropRef = useRef<DropDetail | null>(null);
+
+  useEffect(() => {
+    dropRef.current = drop;
+  }, [drop]);
+
+  useEffect(() => {
+    let active = true;
+
+    const pushActivity = (text: string, tone: WallActivity["tone"]) => {
+      if (!active) return;
+      setActivity((current) => [
+        { id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`, text, tone, time: nowTime() },
+        ...current,
+      ].slice(0, 6));
+    };
+
+    setLoading(true);
+    setError("");
+    setActivity([]);
+
+    api.getDrop(slug)
+      .then((result) => {
+        if (!active) return;
+        setDrop(result);
+        pushActivity(
+          result.state === "live" || result.state === "partially_sold"
+            ? "Wall ready. Buyers can scan and pay now."
+            : `Drop is ${dropStateLabel(result.state).toLowerCase()}.`,
+          "info",
+        );
+      })
+      .catch((err) => {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Could not load live wall");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    const es = api.streamDrop(slug);
+
+    es.addEventListener("snapshot", (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data as string) as Partial<DropDetail>;
+        setDrop((current) => current ? {
+          ...current,
+          title: data.title ?? current.title,
+          slug: data.slug ?? current.slug,
+          state: (data.state as DropState | undefined) ?? current.state,
+          inventory: typeof data.inventory === "number" ? data.inventory : current.inventory,
+          sold_count: typeof data.sold_count === "number" ? data.sold_count : current.sold_count,
+          price_cents: typeof data.price_cents === "number" ? data.price_cents : current.price_cents,
+          currency: data.currency ?? current.currency,
+          media_url: data.media_url ?? current.media_url,
+          bunq_tab_url: data.bunq_tab_url ?? current.bunq_tab_url,
+        } : current);
+      } catch {
+        // ignore malformed SSE snapshot payloads
+      }
+    });
+
+    es.addEventListener("published", (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data as string) as { state?: DropState; bunq_tab_url?: string | null };
+        setDrop((current) => current ? {
+          ...current,
+          state: data.state ?? current.state,
+          bunq_tab_url: data.bunq_tab_url ?? current.bunq_tab_url,
+        } : current);
+        pushActivity("Storefront pushed live. QR is ready for the room.", "state");
+      } catch {
+        // ignore malformed published payloads
+      }
+    });
+
+    es.addEventListener("state_changed", (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data as string) as { state?: DropState; inventory?: number };
+        const nextState = data.state;
+        setDrop((current) => current ? {
+          ...current,
+          state: nextState ?? current.state,
+          inventory: typeof data.inventory === "number" ? data.inventory : current.inventory,
+        } : current);
+        if (nextState) {
+          pushActivity(`Drop status changed to ${dropStateLabel(nextState).toLowerCase()}.`, "state");
+        }
+      } catch {
+        // ignore malformed state payloads
+      }
+    });
+
+    es.addEventListener("payment", (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data as string) as {
+          drop_state?: DropState;
+          inventory?: number;
+          sold_count?: number;
+        };
+        const current = dropRef.current;
+        const nextInventory = typeof data.inventory === "number" ? data.inventory : current?.inventory ?? 0;
+        const nextState = data.drop_state ?? current?.state ?? "live";
+        setDrop((existing) => existing ? {
+          ...existing,
+          state: nextState,
+          inventory: nextInventory,
+          sold_count: typeof data.sold_count === "number" ? data.sold_count : existing.sold_count + 1,
+        } : existing);
+        pushActivity(`${current?.title ?? "Drop"} sold. ${nextInventory} left in stock.`, "sale");
+        if (current) {
+          setCelebration({
+            title: current.title,
+            amount: `€ ${eurosFromCents(current.price_cents)}`,
+          });
+        }
+      } catch {
+        // ignore malformed payment payloads
+      }
+    });
+
+    return () => {
+      active = false;
+      es.close();
+    };
+  }, [slug]);
+
+  if (loading) {
+    return <Flex minH="100dvh" bg={PANEL} align="center" justify="center"><Spinner size="xl" color="white" /></Flex>;
+  }
+
+  if (!drop) {
+    return (
+      <Flex minH="100dvh" bg={PANEL} align="center" justify="center" p={{ base: 4, md: 8 }}>
+        <Box
+          bg="rgba(8,14,20,0.92)"
+          border="1px solid rgba(255,255,255,0.12)"
+          borderRadius="28px"
+          p={{ base: "28px", md: "36px" }}
+          maxW="480px"
+          w="full"
+          boxShadow="0 32px 80px rgba(0,0,0,0.45)"
+        >
+          <Text fontFamily={FONT} fontSize="12px" fontWeight="700" color="whiteAlpha.600" textTransform="uppercase" letterSpacing="0.14em">
+            Live wall
+          </Text>
+          <Text fontFamily={FONT} fontSize="30px" fontWeight="700" color="white" letterSpacing="-1px" mt="12px">
+            This wall is unavailable
+          </Text>
+          <Text fontFamily={FONT} fontSize="15px" color="whiteAlpha.700" mt="12px" lineHeight="1.6">
+            {error || "The requested drop could not be loaded."}
+          </Text>
+          <Box
+            as="button"
+            {...btnPrimary}
+            mt="24px"
+            h="48px"
+            w="full"
+            onClick={() => navigate("/dashboard")}
+          >
+            Back to dashboard
+          </Box>
+        </Box>
+      </Flex>
+    );
+  }
+
+  const checkoutUrl = buyerCheckoutUrl(drop.slug);
+  const stateLabel = dropStateLabel(drop.state);
+  const ctaLabel =
+    drop.state === "sold_out" ? "Sold out"
+    : drop.state === "paused" ? "Paused"
+    : drop.state === "review" || drop.state === "draft" ? "Preparing to go live"
+    : "Scan to pay instantly";
+
+  return (
+    <Box minH="100dvh" bg={PANEL} color="white" position="relative" overflow="hidden">
+      <Box
+        position="absolute"
+        inset={0}
+        bg="radial-gradient(circle at 14% 18%, rgba(0,213,75,0.18), transparent 32%), radial-gradient(circle at 85% 18%, rgba(62,137,255,0.17), transparent 28%), radial-gradient(circle at 50% 92%, rgba(255,157,64,0.20), transparent 34%), linear-gradient(180deg, #04080c 0%, #09131b 42%, #071018 100%)"
+      />
+      <Box
+        position="absolute"
+        insetX="-10%"
+        top="-24%"
+        h="420px"
+        bg="radial-gradient(circle, rgba(255,255,255,0.18), transparent 60%)"
+        transform="rotate(-8deg)"
+        opacity={0.28}
+        filter="blur(48px)"
+      />
+
+      <Box position="relative" zIndex={1} px={{ base: "18px", md: "28px", xl: "40px" }} py={{ base: "18px", md: "24px" }}>
+        <Flex align="center" justify="space-between" gap="12px" mb={{ base: "18px", md: "24px" }} wrap="wrap">
+          <Flex align="center" gap="10px">
+            <Box
+              w="10px"
+              h="10px"
+              borderRadius="50%"
+              bg={drop.state === "live" || drop.state === "partially_sold" ? G : "whiteAlpha.500"}
+              boxShadow={drop.state === "live" || drop.state === "partially_sold" ? "0 0 0 8px rgba(0,213,75,0.16)" : "none"}
+            />
+            <Text fontFamily={FONT} fontSize="12px" fontWeight="700" color="whiteAlpha.700" textTransform="uppercase" letterSpacing="0.16em">
+              FlashDrop Live Wall
+            </Text>
+          </Flex>
+
+          <Flex align="center" gap="10px" wrap="wrap">
+            <Box
+              as="button"
+              border="1px solid rgba(255,255,255,0.14)"
+              borderRadius="999px"
+              px="14px"
+              h="38px"
+              display="flex"
+              alignItems="center"
+              fontFamily={FONT}
+              fontSize="13px"
+              fontWeight="600"
+              bg="rgba(255,255,255,0.06)"
+              color="white"
+              cursor="pointer"
+              onClick={() => window.open(checkoutUrl, "_blank", "noopener,noreferrer")}
+            >
+              Open buyer checkout
+            </Box>
+            <Box
+              as="button"
+              border="1px solid rgba(255,255,255,0.12)"
+              borderRadius="999px"
+              px="14px"
+              h="38px"
+              bg="rgba(255,255,255,0.04)"
+              color="white"
+              fontFamily={FONT}
+              fontSize="13px"
+              fontWeight="600"
+              cursor="pointer"
+              onClick={() => navigate("/dashboard")}
+            >
+              Exit wall
+            </Box>
+          </Flex>
+        </Flex>
+
+        <Grid templateColumns={{ base: "1fr", xl: "1.15fr 0.85fr" }} gap={{ base: "18px", xl: "22px" }}>
+          <Box
+            border="1px solid rgba(255,255,255,0.11)"
+            borderRadius={{ base: "24px", md: "30px" }}
+            overflow="hidden"
+            bg="rgba(255,255,255,0.05)"
+            boxShadow="0 28px 80px rgba(0,0,0,0.36)"
+          >
+            <Grid templateColumns={{ base: "1fr", lg: "0.92fr 1.08fr" }} minH={{ base: "auto", xl: "calc(100dvh - 140px)" }}>
+              <Box minH={{ base: "280px", lg: "100%" }} position="relative" bg="#0a1219">
+                <ProductTileImage imageUrl={drop.media_url ?? ""} title={drop.title} />
+                <Box
+                  position="absolute"
+                  insetX={0}
+                  bottom={0}
+                  p={{ base: "18px", md: "24px" }}
+                  bg="linear-gradient(180deg, rgba(5,10,14,0.02) 0%, rgba(5,10,14,0.84) 76%, rgba(5,10,14,0.98) 100%)"
+                >
+                  <Flex align="center" gap="10px" wrap="wrap">
+                    <Box
+                      px="12px"
+                      py="6px"
+                      borderRadius="999px"
+                      bg={drop.state === "sold_out" ? "rgba(255,255,255,0.16)" : "rgba(0,213,75,0.18)"}
+                      border="1px solid rgba(255,255,255,0.12)"
+                    >
+                      <Text fontFamily={FONT} fontSize="11px" fontWeight="700" letterSpacing="0.08em" textTransform="uppercase">
+                        {stateLabel}
+                      </Text>
+                    </Box>
+                    <Text fontFamily={FONT} fontSize="12px" color="whiteAlpha.700">
+                      One scan. One tap. One sale.
+                    </Text>
+                  </Flex>
+                </Box>
+              </Box>
+
+              <Flex direction="column" p={{ base: "22px", md: "28px", xl: "34px" }}>
+                <Text fontFamily={FONT} fontSize="12px" fontWeight="700" color="whiteAlpha.600" textTransform="uppercase" letterSpacing="0.16em">
+                  Live storefront
+                </Text>
+                <Text fontFamily={FONT} fontSize={{ base: "34px", md: "50px", xl: "62px" }} lineHeight={0.95} fontWeight="700" letterSpacing="-2px" mt="12px">
+                  {drop.title}
+                </Text>
+                <Text fontFamily={FONT} fontSize={{ base: "15px", md: "18px" }} lineHeight="1.65" color="whiteAlpha.800" mt="16px" maxW="40ch">
+                  {drop.description || "Instant storefront energy for a physical drop. Show the wall, let the room scan, and watch inventory move live."}
+                </Text>
+
+                <SimpleGrid columns={{ base: 2, md: 3 }} gap="12px" mt={{ base: "24px", xl: "28px" }}>
+                  {[
+                    { label: "Price", value: `€ ${eurosFromCents(drop.price_cents)}` },
+                    { label: "Remaining", value: String(Math.max(0, drop.inventory)) },
+                    { label: "Sold", value: String(drop.sold_count) },
+                  ].map((item) => (
+                    <Box
+                      key={item.label}
+                      borderRadius="18px"
+                      p={{ base: "16px", md: "18px" }}
+                      bg="rgba(255,255,255,0.06)"
+                      border="1px solid rgba(255,255,255,0.09)"
+                    >
+                      <Text fontFamily={FONT} fontSize="11px" fontWeight="700" color="whiteAlpha.600" textTransform="uppercase" letterSpacing="0.08em">
+                        {item.label}
+                      </Text>
+                      <Text fontFamily={FONT} fontSize={{ base: "24px", md: "28px" }} fontWeight="700" letterSpacing="-0.8px" mt="10px">
+                        {item.value}
+                      </Text>
+                    </Box>
+                  ))}
+                </SimpleGrid>
+
+                <Box
+                  mt={{ base: "18px", md: "22px" }}
+                  p={{ base: "18px", md: "20px" }}
+                  borderRadius="22px"
+                  bg="linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.03))"
+                  border="1px solid rgba(255,255,255,0.10)"
+                >
+                  <Text fontFamily={FONT} fontSize="11px" fontWeight="700" color="whiteAlpha.600" textTransform="uppercase" letterSpacing="0.08em">
+                    Seller script
+                  </Text>
+                  <Text fontFamily={FONT} fontSize={{ base: "18px", md: "22px" }} fontWeight="600" lineHeight="1.45" mt="10px">
+                    “Scan the code, pay on your phone, and this wall updates the second it lands.”
+                  </Text>
+                </Box>
+
+                <Flex mt="auto" pt={{ base: "22px", md: "28px" }} gap="10px" wrap="wrap">
+                  {["Point", "Speak", "Publish", "Sell"].map((step, index) => (
+                    <Flex
+                      key={step}
+                      align="center"
+                      gap="10px"
+                      px="14px"
+                      h="42px"
+                      borderRadius="999px"
+                      bg="rgba(255,255,255,0.06)"
+                      border="1px solid rgba(255,255,255,0.08)"
+                    >
+                      <Text fontFamily={FONT} fontSize="11px" fontWeight="700" color="whiteAlpha.600">
+                        0{index + 1}
+                      </Text>
+                      <Text fontFamily={FONT} fontSize="13px" fontWeight="600">
+                        {step}
+                      </Text>
+                    </Flex>
+                  ))}
+                </Flex>
+              </Flex>
+            </Grid>
+          </Box>
+
+          <Flex direction="column" gap="18px">
+            <Box
+              borderRadius={{ base: "24px", md: "28px" }}
+              p={{ base: "22px", md: "26px" }}
+              bg="rgba(255,255,255,0.06)"
+              border="1px solid rgba(255,255,255,0.10)"
+              boxShadow="0 28px 80px rgba(0,0,0,0.24)"
+            >
+              <Text fontFamily={FONT} fontSize="11px" fontWeight="700" color="whiteAlpha.600" textTransform="uppercase" letterSpacing="0.12em">
+                {ctaLabel}
+              </Text>
+              <Text fontFamily={FONT} fontSize={{ base: "18px", md: "22px" }} fontWeight="600" lineHeight="1.4" mt="10px" mb="18px">
+                This is the projected seller mode. Keep it on a screen and let buyers self-serve the checkout.
+              </Text>
+
+              <Flex align="center" justify="center" p={{ base: "18px", md: "22px" }} bg="white" borderRadius="28px">
+                <QrCode.Root value={checkoutUrl} color="#0f1720" bg="white" maxW={{ base: "250px", md: "320px" }} w="full">
+                  <QrCode.Frame>
+                    <QrCode.Pattern />
+                  </QrCode.Frame>
+                </QrCode.Root>
+              </Flex>
+
+              <Text fontFamily={FONT} fontSize="13px" color="whiteAlpha.700" mt="18px" lineHeight="1.6">
+                Buyers land on the mobile checkout instantly. The wall stays clean, the phone handles payment, and the seller screen becomes the show.
+              </Text>
+
+              <Flex gap="10px" mt="18px" wrap="wrap">
+                <Box
+                  as="button"
+                  bg={G}
+                  color="black"
+                  borderRadius="999px"
+                  px="16px"
+                  h="42px"
+                  display="flex"
+                  alignItems="center"
+                  fontFamily={FONT}
+                  fontSize="13px"
+                  fontWeight="700"
+                  cursor="pointer"
+                  border="none"
+                  onClick={() => window.open(checkoutUrl, "_blank", "noopener,noreferrer")}
+                >
+                  Test buyer flow
+                </Box>
+                {drop.bunq_tab_url && (
+                  <Box
+                    as="button"
+                    border="1px solid rgba(255,255,255,0.12)"
+                    borderRadius="999px"
+                    px="16px"
+                    h="42px"
+                    display="flex"
+                    alignItems="center"
+                    fontFamily={FONT}
+                    fontSize="13px"
+                    fontWeight="600"
+                    bg="rgba(255,255,255,0.04)"
+                    color="white"
+                    cursor="pointer"
+                    onClick={() => window.open(drop.bunq_tab_url ?? "", "_blank", "noopener,noreferrer")}
+                  >
+                    View bunq link
+                  </Box>
+                )}
+              </Flex>
+            </Box>
+
+            <Box
+              borderRadius={{ base: "24px", md: "28px" }}
+              p={{ base: "22px", md: "24px" }}
+              bg="rgba(255,255,255,0.05)"
+              border="1px solid rgba(255,255,255,0.10)"
+            >
+              <Flex align="center" justify="space-between" gap="12px" mb="16px">
+                <Box>
+                  <Text fontFamily={FONT} fontSize="11px" fontWeight="700" color="whiteAlpha.600" textTransform="uppercase" letterSpacing="0.12em">
+                    Live activity
+                  </Text>
+                  <Text fontFamily={FONT} fontSize="14px" color="whiteAlpha.700" mt="4px">
+                    Instant sale feed for the room.
+                  </Text>
+                </Box>
+                <Text fontFamily={FONT} fontSize="13px" fontWeight="600" color={drop.state === "sold_out" ? "whiteAlpha.900" : "green.300"}>
+                  {stateLabel}
+                </Text>
+              </Flex>
+
+              <Flex direction="column" gap="12px">
+                {activity.map((item) => (
+                  <Flex
+                    key={item.id}
+                    align="start"
+                    gap="12px"
+                    p="14px"
+                    borderRadius="18px"
+                    bg={item.tone === "sale" ? "rgba(0,213,75,0.12)" : "rgba(255,255,255,0.05)"}
+                    border="1px solid"
+                    borderColor={item.tone === "sale" ? "rgba(0,213,75,0.16)" : "rgba(255,255,255,0.08)"}
+                  >
+                    <Box
+                      w="10px"
+                      h="10px"
+                      mt="6px"
+                      borderRadius="50%"
+                      bg={item.tone === "sale" ? G : item.tone === "state" ? "#f6ad55" : "whiteAlpha.700"}
+                      flexShrink={0}
+                    />
+                    <Box flex={1}>
+                      <Text fontFamily={FONT} fontSize="14px" fontWeight="600" lineHeight="1.5">
+                        {item.text}
+                      </Text>
+                      <Text fontFamily={FONT} fontSize="12px" color="whiteAlpha.600" mt="4px">
+                        {item.time}
+                      </Text>
+                    </Box>
+                  </Flex>
+                ))}
+              </Flex>
+            </Box>
+          </Flex>
+        </Grid>
+      </Box>
+
+      {celebration && <PaymentCelebration data={celebration} onDone={() => setCelebration(null)} />}
+    </Box>
+  );
+}
+
 function BuyerCheckoutPage() {
   const { slug = "" } = useParams();
   const navigate = useNavigate();
@@ -1078,6 +1594,7 @@ export default function App() {
       <Routes>
         <Route index element={<LoginPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/wall/:slug" element={<LiveWallPage />} />
         <Route path="/buy/:slug" element={<BuyerCheckoutPage />} />
         <Route path="/buy/:slug/success" element={<BuyerSuccessPage />} />
         <Route path="*" element={<Navigate replace to="/" />} />
