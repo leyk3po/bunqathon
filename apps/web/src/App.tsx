@@ -289,13 +289,8 @@ function LoginPage() {
       {/* Content */}
       <Flex direction="column" align="center" w="full" maxW="400px" position="relative" zIndex={1}>
         {/* Wordmark */}
-        <Text
-          className="login-logo-in"
-          fontFamily={FONT} fontWeight="700" fontSize="18px"
-          color={TEXT} letterSpacing="-0.5px" mb="28px"
-        >
-          FlashDrop
-        </Text>
+        <BunqWordmark height={48} />
+        <Box h="24px" w="1px" bg={BORDER} flexShrink={0} />
 
         {/* Card */}
         <GlassCard className="login-card-in" w="full" borderRadius="20px" p={{ base: "28px", md: "36px" }}>
