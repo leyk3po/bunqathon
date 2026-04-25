@@ -54,6 +54,7 @@ def generate_preview(payload: GeneratePreviewRequest) -> GeneratePreviewResponse
         currency=result.currency,
         inventory=result.inventory,
         floor_price_cents=result.floor_price_cents,
+        duration_minutes=result.duration_minutes,
     )
 
 

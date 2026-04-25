@@ -23,6 +23,7 @@ class Generated:
     currency: str = "EUR"
     inventory: int = 1
     floor_price_cents: int | None = None  # extracted from pitch ("won't take less than €15")
+    duration_minutes: int | None = None  # extracted from pitch ("ends tomorrow", "live for 3h")
 
 
 class AIError(Exception):
@@ -56,6 +57,17 @@ _OUTPUT_SCHEMA = {
             "description": "Seller's stated minimum/floor in cents (e.g. 'won't take less than €15' -> 1500). null if not mentioned.",
             "minimum": 0,
             "maximum": 500000,
+        },
+        "duration_minutes": {
+            "type": ["integer", "null"],
+            "description": (
+                "How long the drop should stay live, in minutes. Parse natural-language phrases: "
+                "'ends tomorrow' or 'until tomorrow' -> 1440. 'for 3 hours' -> 180. 'next 30 minutes' -> 30. "
+                "'until end of day' -> minutes from now until 23:59 local. 'this weekend' -> 2880. "
+                "Return null if the seller does not mention an end time."
+            ),
+            "minimum": 1,
+            "maximum": 100000,
         },
     },
     "required": ["title", "description", "price_cents", "currency", "inventory"],
@@ -180,6 +192,14 @@ def _anthropic_generate_drop_copy(pitch: str, media_url: str | None = None) -> G
                 floor = floor_int if floor_int > 0 else None
             except (TypeError, ValueError):
                 floor = None
+        duration_raw = parsed.get("duration_minutes")
+        duration: int | None = None
+        if duration_raw is not None:
+            try:
+                duration_int = int(duration_raw)
+                duration = max(1, min(duration_int, 100000)) if duration_int > 0 else None
+            except (TypeError, ValueError):
+                duration = None
         return Generated(
             title=str(parsed["title"]).strip()[:80],
             description=str(parsed["description"]).strip()[:300],
@@ -187,6 +207,7 @@ def _anthropic_generate_drop_copy(pitch: str, media_url: str | None = None) -> G
             currency=str(parsed["currency"]).upper(),
             inventory=max(1, generated_inventory),
             floor_price_cents=floor,
+            duration_minutes=duration,
         )
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         raise AIUpstreamError("Anthropic response could not be parsed into preview JSON") from exc

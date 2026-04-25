@@ -174,3 +174,4 @@ class GeneratePreviewResponse(BaseModel):
     currency: str
     inventory: int
     floor_price_cents: int | None = None
+    duration_minutes: int | None = None

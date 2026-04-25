@@ -1066,14 +1066,31 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
       const mediaUrl = await ensureUploaded();
       const pitch = draft.prompt.trim() || "Limited drop, available now.";
       const preview = await api.generatePreview(pitch, mediaUrl);
-      setDraft((d) => ({
-        ...d,
-        title: preview.title,
-        description: preview.description,
-        price: eurosFromCents(preview.price_cents),
-        stock: preview.inventory,
-        floorPrice: preview.floor_price_cents != null ? eurosFromCents(preview.floor_price_cents) : d.floorPrice,
-      }));
+      setDraft((d) => {
+        let expiresDate = d.expiresDate;
+        let expiresTime = d.expiresTime;
+        if (preview.duration_minutes && preview.duration_minutes > 0) {
+          const ends = new Date(Date.now() + preview.duration_minutes * 60_000);
+          // local-iso so the date/time inputs accept it
+          const yyyy = ends.getFullYear();
+          const mm = String(ends.getMonth() + 1).padStart(2, "0");
+          const dd = String(ends.getDate()).padStart(2, "0");
+          const hh = String(ends.getHours()).padStart(2, "0");
+          const mi = String(ends.getMinutes()).padStart(2, "0");
+          expiresDate = `${yyyy}-${mm}-${dd}`;
+          expiresTime = `${hh}:${mi}`;
+        }
+        return {
+          ...d,
+          title: preview.title,
+          description: preview.description,
+          price: eurosFromCents(preview.price_cents),
+          stock: preview.inventory,
+          floorPrice: preview.floor_price_cents != null ? eurosFromCents(preview.floor_price_cents) : d.floorPrice,
+          expiresDate,
+          expiresTime,
+        };
+      });
     } catch {
       setApiError("AI unavailable — fill in the details below.");
       setDraft((d) => makeLocalDraft(d));

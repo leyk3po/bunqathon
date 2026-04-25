@@ -81,6 +81,7 @@ export type GeneratePreviewResponse = {
   currency: string;
   inventory: number;
   floor_price_cents: number | null;
+  duration_minutes: number | null;
 };
 
 export type SellerPublic = {
