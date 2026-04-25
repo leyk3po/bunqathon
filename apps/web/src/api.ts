@@ -66,6 +66,7 @@ export type MediaUploadResponse = {
 export type NotificationPublic = {
   id: string;
   drop_id: string | null;
+  drop_slug: string | null;
   drop_title: string;
   amount_cents: number;
   currency: string;
@@ -241,6 +242,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify(amount_cents != null ? { amount_cents } : {}),
     }),
+
+  getBunqBalance: (): Promise<{ account_id: number; description: string; balance_cents: number; currency: string; iban: string | null }> =>
+    request("/bunq/balance"),
 
   haggle: (
     slug: string,
