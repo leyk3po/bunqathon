@@ -758,8 +758,8 @@ export default function HeroPage() {
         >
           <Text>FlashDrop · Bunqathon 2026 · Amsterdam</Text>
           <Flex gap="24px" wrap="wrap">
-            <Box as="a" href="#" _hover={{ opacity: 1 }}>GitHub ↗</Box>
-            <Box as="a" href="#" _hover={{ opacity: 1 }}>Bunq sandbox ↗</Box>
+            <Box as="a" href={"https://github.com/leyk3po/bunqathon"} _hover={{ opacity: 1 }}>GitHub ↗</Box>
+            <Box as="a" href={"https://doc.bunq.com"} _hover={{ opacity: 1 }}>Bunq Docs ↗</Box>
           </Flex>
         </Flex>
       </Box>
