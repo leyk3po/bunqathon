@@ -644,7 +644,7 @@ export default function HeroPage() {
           gap={{ base: "16px", md: "20px" }}
         >
           {[
-            ["28s", "Median time from snap to live drop"],
+            ["7s", "Median time from snap to live drop"],
             ["100%", "Settled directly to your bunq account"],
             ["0", "Marketplace fees during the bunqathon"],
             ["1-tap", "Buyer checkout — scan and you're done"],

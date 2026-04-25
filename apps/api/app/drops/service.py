@@ -76,6 +76,7 @@ def create_drop(db: Session, payload: DropCreate) -> Drop:
         description=payload.description,
         pitch=payload.pitch,
         price_cents=payload.price_cents,
+        floor_price_cents=payload.floor_price_cents,
         currency=payload.currency.upper(),
         inventory=payload.inventory,
         media_url=payload.media_url,
@@ -224,7 +225,7 @@ def publish_drop(db: Session, drop_id: str) -> Drop:
     return drop
 
 
-def mock_payment_for_drop(db: Session, drop_id: str) -> Drop:
+def mock_payment_for_drop(db: Session, drop_id: str, amount_cents: int | None = None) -> Drop:
     if not settings.bunq_sandbox:
         raise DropConflict("mock payment is only available when BUNQ_SANDBOX=true")
 
@@ -232,18 +233,29 @@ def mock_payment_for_drop(db: Session, drop_id: str) -> Drop:
     if not drop.bunq_tab_reference:
         raise DropConflict("drop has no bunq payment to mock")
 
+    floor = drop.floor_price_cents if (drop.floor_price_cents and drop.floor_price_cents > 0) else None
+    if amount_cents is not None:
+        if amount_cents < 1:
+            raise DropInvalid("amount must be at least 1 cent")
+        if amount_cents > drop.price_cents:
+            raise DropInvalid("amount cannot exceed listed price")
+        if floor is not None and amount_cents < floor:
+            raise DropInvalid("amount is below the seller floor")
+    paid_cents = amount_cents if amount_cents is not None else drop.price_cents
+
     updated_drop, _payment = apply_payment_event(
         db,
         reference=drop.bunq_tab_reference,
         new_status=PaymentStatus.paid,
-        amount_cents=drop.price_cents,
+        amount_cents=paid_cents,
         webhook_event_id=f"sandbox-mock:{drop.id}:{drop.sold_count + 1}",
         webhook_payload={
             "source": "sandbox_mock",
             "reference": drop.bunq_tab_reference,
-            "amount_cents": drop.price_cents,
+            "amount_cents": paid_cents,
             "status": PaymentStatus.paid.value,
             "drop_id": drop.id,
+            "haggled": amount_cents is not None and amount_cents != drop.price_cents,
         },
     )
     db.refresh(updated_drop)
