@@ -20,13 +20,8 @@ def _utcnow() -> datetime:
 
 class DropState(str, enum.Enum):
     draft = "draft"
-    processing = "processing"
-    review = "review"
     live = "live"
-    partially_sold = "partially_sold"
     sold_out = "sold_out"
-    paused = "paused"
-    expired = "expired"
     archived = "archived"
 
 
@@ -64,10 +59,14 @@ class Drop(Base):
     media_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     bunq_tab_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     bunq_tab_uuid: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    bunq_tab_reference: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
 
     state: Mapped[DropState] = mapped_column(
         Enum(DropState, name="drop_state"), default=DropState.draft, index=True
     )
+
+    duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(

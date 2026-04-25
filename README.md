@@ -195,14 +195,8 @@
   The drop lifecycle is:
 
   - draft
-  - uploading
-  - processing
-  - review
   - live
-  - partially sold
   - sold out
-  - paused
-  - expired
   - archived
 
   ## Demo story

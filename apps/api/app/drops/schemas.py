@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.drops.models import DropState, EventSource, PaymentStatus
 
@@ -32,6 +32,15 @@ class DropCreate(BaseModel):
     media_url: str | None = None
     seller_id: str | None = None
     slug: str | None = None
+    duration_minutes: int | None = Field(default=None, ge=1)
+    expires_at: datetime | None = None
+
+    @field_validator("expires_at", mode="before")
+    @classmethod
+    def _ensure_tz(cls, v: object) -> object:
+        if isinstance(v, datetime) and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
 
 
 class DropUpdate(BaseModel):
@@ -79,6 +88,8 @@ class DropPublic(BaseModel):
     media_url: str | None
     bunq_tab_url: str | None
     state: DropState
+    duration_minutes: int | None
+    expires_at: datetime | None
     created_at: datetime
     updated_at: datetime
 

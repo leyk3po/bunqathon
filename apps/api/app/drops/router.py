@@ -119,19 +119,6 @@ def update_drop(
         raise _translate(exc) from exc
 
 
-@router.post("/{drop_id}/review", response_model=DropDetail)
-def move_drop_to_review(
-    drop_id: str,
-    db: Session = Depends(get_db),
-    current_seller: Seller = Depends(get_current_seller),
-) -> Drop:
-    try:
-        service.ensure_owner(service.get_by_id(db, drop_id), current_seller.id)
-        return service.move_drop_to_review(db, drop_id)
-    except service.DropError as exc:
-        raise _translate(exc) from exc
-
-
 @router.post("/{drop_id}/publish", response_model=DropDetail)
 def publish_drop(
     drop_id: str,
@@ -153,32 +140,6 @@ def publish_drop(
 def mock_payment(drop_id: str, db: Session = Depends(get_db)) -> Drop:
     try:
         return service.mock_payment_for_drop(db, drop_id)
-    except service.DropError as exc:
-        raise _translate(exc) from exc
-
-
-@router.post("/{drop_id}/pause", response_model=DropDetail)
-def pause_drop(
-    drop_id: str,
-    db: Session = Depends(get_db),
-    current_seller: Seller = Depends(get_current_seller),
-) -> Drop:
-    try:
-        service.ensure_owner(service.get_by_id(db, drop_id), current_seller.id)
-        return service.pause_drop(db, drop_id)
-    except service.DropError as exc:
-        raise _translate(exc) from exc
-
-
-@router.post("/{drop_id}/resume", response_model=DropDetail)
-def resume_drop(
-    drop_id: str,
-    db: Session = Depends(get_db),
-    current_seller: Seller = Depends(get_current_seller),
-) -> Drop:
-    try:
-        service.ensure_owner(service.get_by_id(db, drop_id), current_seller.id)
-        return service.resume_drop(db, drop_id)
     except service.DropError as exc:
         raise _translate(exc) from exc
 

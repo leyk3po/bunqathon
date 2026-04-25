@@ -24,10 +24,11 @@ export type Listing = {
   createdAt: string;
   audioUrl?: string;
   bunqTabUrl?: string | null;
+  expiresAt?: string;
 };
 
 function listingStatusFromDropState(state: DropState | undefined): ListingStatus {
-  if (state === "live" || state === "partially_sold") return "live";
+  if (state === "live") return "live";
   if (state === "sold_out") return "sold";
   return "draft";
 }
@@ -35,6 +36,28 @@ function listingStatusFromDropState(state: DropState | undefined): ListingStatus
 function fmt(price: string) {
   const n = Number(price);
   return `€ ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
+}
+
+function fmtCountdown(expiresAt: string): string {
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (ms <= 0) return "Ended";
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+
+function useCountdown(expiresAt?: string) {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!expiresAt) return;
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [expiresAt]);
+  return tick;
 }
 
 export function ListingCard({
@@ -53,6 +76,7 @@ export function ListingCard({
   onCelebrate: (d: CelebrationData) => void;
 }) {
   const [copied, setCopied] = useState(false);
+  useCountdown(listing.expiresAt);
 
   useEffect(() => {
     if (!listing.slug || listing.status !== "live") return;
@@ -94,7 +118,7 @@ export function ListingCard({
   }, [listing.slug, listing.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const st = listing.state ?? (listing.status === "live" ? "live" : listing.status === "sold" ? "sold_out" : "draft");
-  const isShareable = st === "live" || st === "partially_sold";
+  const isShareable = st === "live";
   const shareUrl = buyerCheckoutUrl(listing.slug);
 
   const stopAndRun = (event: React.MouseEvent, action: () => void) => {
@@ -193,13 +217,12 @@ export function ListingCard({
   }
 
   function StatusBadge() {
-    if (st === "live" || st === "partially_sold") {
-      const dotColor = st === "partially_sold" ? "#22c55e" : "#ef4444";
+    if (st === "live") {
       return (
         <Flex align="center" gap="5px" bg="white" borderRadius="20px" px="8px" py="4px" boxShadow="0 1px 6px rgba(0,0,0,0.14)">
-          <Box style={{ backgroundColor: dotColor, "--dot-clr": dotColor } as React.CSSProperties} borderRadius="full" h="6px" w="6px" flexShrink={0} position="relative" className="live-pulse" />
+          <Box style={{ backgroundColor: "#ef4444", "--dot-clr": "#ef4444" } as React.CSSProperties} borderRadius="full" h="6px" w="6px" flexShrink={0} position="relative" className="live-pulse" />
           <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color="black">
-            {st === "partially_sold" ? "Selling" : "Live"}
+            Live
           </Text>
         </Flex>
       );
@@ -211,30 +234,11 @@ export function ListingCard({
         </Box>
       );
     }
-    if (st === "review" || st === "processing") {
-      return (
-        <Box bg="rgba(200,140,20,0.85)" borderRadius="20px" px="8px" py="4px" style={{ backdropFilter: "blur(6px)" }}>
-          <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color="white">In review</Text>
-        </Box>
-      );
-    }
-    if (st === "paused") {
-      return (
-        <Box bg="rgba(80,80,90,0.80)" borderRadius="20px" px="8px" py="4px" style={{ backdropFilter: "blur(6px)" }}>
-          <Text fontFamily={FONT} fontSize="11px" fontWeight="500" color="white">Paused</Text>
-        </Box>
-      );
-    }
-    if (st === "expired") {
-      return (
-        <Box bg="rgba(160,50,50,0.80)" borderRadius="20px" px="8px" py="4px" style={{ backdropFilter: "blur(6px)" }}>
-          <Text fontFamily={FONT} fontSize="11px" fontWeight="500" color="white">Expired</Text>
-        </Box>
-      );
-    }
     return (
       <Box bg="rgba(0,0,0,0.45)" borderRadius="20px" px="8px" py="4px" style={{ backdropFilter: "blur(6px)" }}>
-        <Text fontFamily={FONT} fontSize="11px" fontWeight="500" color="white">Draft</Text>
+        <Text fontFamily={FONT} fontSize="11px" fontWeight="500" color="white">
+          {st === "archived" ? "Archived" : "Draft"}
+        </Text>
       </Box>
     );
   }
@@ -302,7 +306,7 @@ export function ListingCard({
           lineHeight="1.5"
           mb="12px"
           overflow="hidden"
-          style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}
+          style={{ display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" }}
         >
           {listing.description || "No description yet."}
         </Text>
@@ -311,6 +315,11 @@ export function ListingCard({
           <Text fontFamily={FONT} fontSize="12px" color={MUTED}>
             {listing.stock} in stock · {listing.createdAt}
           </Text>
+          {listing.expiresAt && listing.state === "live" && (
+            <Text fontFamily={FONT} fontSize="12px" fontWeight="600" color={fmtCountdown(listing.expiresAt) === "Ended" ? "#dc2626" : "#f59e0b"}>
+              ⏱ {fmtCountdown(listing.expiresAt)}
+            </Text>
+          )}
         </Flex>
 
         {listing.bunqTabUrl && (

@@ -36,12 +36,7 @@ const inputStyle = {
 function stateLabel(state: DropState | undefined): string {
   switch (state) {
     case "live": return "Live";
-    case "partially_sold": return "Selling";
     case "sold_out": return "Sold out";
-    case "paused": return "Paused";
-    case "review":
-    case "processing": return "In review";
-    case "expired": return "Expired";
     case "archived": return "Archived";
     default: return "Draft";
   }
@@ -115,13 +110,7 @@ export function EditModal({
   type Action = { label: string; fn: () => void } | null;
   const primaryAction: Action =
     state === "draft"
-      ? { label: "Submit for review", fn: () => runAction(() => api.moveToReview(listing.id), { state: "review", status: "draft" }) }
-    : state === "review"
       ? { label: "Publish now", fn: () => runAction(() => api.publish(listing.id), { state: "live", status: "live" }) }
-    : state === "live" || state === "partially_sold"
-      ? { label: "Pause drop", fn: () => runAction(() => api.pause(listing.id), { state: "paused", status: "draft" }) }
-    : state === "paused"
-      ? { label: "Resume drop", fn: () => runAction(() => api.resume(listing.id), { state: "live", status: "live" }) }
     : null;
 
   return (

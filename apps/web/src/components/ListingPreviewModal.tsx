@@ -11,10 +11,8 @@ function fmt(price: string) {
 }
 
 function stateLabel(listing: Listing) {
-  if (listing.state === "live" || listing.state === "partially_sold") return "Live preview";
+  if (listing.state === "live") return "Live preview";
   if (listing.state === "sold_out") return "Sold out";
-  if (listing.state === "review" || listing.state === "processing") return "Review preview";
-  if (listing.state === "paused") return "Paused preview";
   if (listing.state === "archived") return "Archived";
   return "Draft preview";
 }
@@ -27,7 +25,7 @@ export function ListingPreviewModal({
   onClose: () => void;
 }) {
   const buyerUrl = buyerCheckoutUrl(listing.slug);
-  const isLive = listing.state === "live" || listing.state === "partially_sold";
+  const isLive = listing.state === "live";
 
   return (
     <Flex

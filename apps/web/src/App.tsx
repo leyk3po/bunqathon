@@ -46,13 +46,8 @@ type DropStatusFilter = DropState;
 
 const statusTabs: Array<{ value: DropStatusFilter; label: string }> = [
   { value: "draft", label: "Draft" },
-  { value: "processing", label: "Processing" },
-  { value: "review", label: "Review" },
   { value: "live", label: "Live" },
-  { value: "partially_sold", label: "Selling" },
   { value: "sold_out", label: "Sold" },
-  { value: "paused", label: "Paused" },
-  { value: "expired", label: "Expired" },
   { value: "archived", label: "Archived" },
 ];
 
@@ -73,7 +68,7 @@ function listingMatchesFilter(listing: Listing, filters: DropStatusFilter[]): bo
 
 function dropToListing(drop: DropPublic): Listing {
   const status =
-    drop.state === "live" || drop.state === "partially_sold" ? "live" as const
+    drop.state === "live" ? "live" as const
     : drop.state === "sold_out" ? "sold" as const
     : "draft" as const;
   return {
@@ -91,7 +86,6 @@ function nowTime() {
 }
 
 function checkoutStatusFromState(state: DropState): "ready" | "paid" | "unavailable" {
-  if (state === "sold_out" || state === "partially_sold") return "paid";
   if (state === "live") return "ready";
   return "unavailable";
 }
@@ -99,12 +93,7 @@ function checkoutStatusFromState(state: DropState): "ready" | "paid" | "unavaila
 function dropStateLabel(state: DropState): string {
   switch (state) {
     case "live": return "Live now";
-    case "partially_sold": return "Selling fast";
     case "sold_out": return "Sold out";
-    case "paused": return "Paused";
-    case "review":
-    case "processing": return "Preparing";
-    case "expired": return "Expired";
     case "archived": return "Archived";
     default: return "Draft";
   }
@@ -129,7 +118,7 @@ function makeLocalDraft(d: DraftListing): DraftListing {
 type DraftListing = {
   imageUrl: string; prompt: string; title: string;
   description: string; price: string; stock: number;
-  category: string; audioUrl?: string;
+  category: string; audioUrl?: string; expiresDate?: string; expiresTime?: string;
 };
 
 const emptyDraft: DraftListing = {
@@ -763,6 +752,11 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
 
   const hasPhoto    = Boolean(draft.imageUrl);
   const canGenerate = hasPhoto || draft.prompt.trim().length > 0;
+  const expiryInvalid = Boolean(
+    draft.expiresDate && draft.expiresTime &&
+    new Date(`${draft.expiresDate}T${draft.expiresTime}`) <= new Date()
+  ) || Boolean(draft.expiresDate && !draft.expiresTime);
+  const canPublish  = canGenerate && !expiryInvalid;
   const SpeechRecognitionCtor =
     typeof window === "undefined"
       ? null
@@ -877,10 +871,12 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
     try {
       if (!capturedBlobRef.current && draft.imageUrl.startsWith("data:")) capturedBlobRef.current = await dataUrlToBlob(draft.imageUrl);
       const mediaUrl = await ensureUploaded();
-      const created  = await api.createDrop({ title: draft.title.trim() || titleFromPrompt(draft.prompt), description: draft.description.trim(), pitch: draft.prompt.trim() || null, price_cents: centsFromEuros(draft.price), inventory: Math.max(1, draft.stock), media_url: mediaUrl });
-      const reviewed = await api.moveToReview(created.id);
-      const live     = await api.publish(reviewed.id);
-      onPost({ id: live.id, slug: live.slug, title: live.title, description: live.description, price: eurosFromCents(live.price_cents), stock: live.inventory, category: draft.category, imageUrl: draft.imageUrl, prompt: draft.prompt, status: "live", state: live.state, createdAt: nowTime(), audioUrl: draft.audioUrl, bunqTabUrl: live.bunq_tab_url });
+      const expiresIso = (draft.expiresDate && draft.expiresTime)
+        ? new Date(`${draft.expiresDate}T${draft.expiresTime}`).toISOString()
+        : null;
+      const created  = await api.createDrop({ title: draft.title.trim() || titleFromPrompt(draft.prompt), description: draft.description.trim(), pitch: draft.prompt.trim() || null, price_cents: centsFromEuros(draft.price), inventory: Math.max(1, draft.stock), media_url: mediaUrl, expires_at: expiresIso });
+      const live     = await api.publish(created.id);
+      onPost({ id: live.id, slug: live.slug, title: live.title, description: live.description, price: eurosFromCents(live.price_cents), stock: live.inventory, category: draft.category, imageUrl: draft.imageUrl, prompt: draft.prompt, status: "live", state: live.state, createdAt: nowTime(), audioUrl: draft.audioUrl, bunqTabUrl: live.bunq_tab_url, expiresAt: live.expires_at ?? undefined });
       onClose();
     } catch (err) {
       setApiError(err instanceof Error ? err.message : "Publish failed");
@@ -1030,6 +1026,24 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
             {draft.audioUrl && (
               <Box mt="10px">
                 <audio controls src={draft.audioUrl} style={{ width: "100%", borderRadius: "8px" }} />
+                <Box
+                  as="button"
+                  mt="6px"
+                  fontFamily={FONT}
+                  fontSize="12px"
+                  color={MUTED}
+                  bg="transparent"
+                  border="none"
+                  cursor="pointer"
+                  p="0"
+                  _hover={{ color: "#dc2626" }}
+                  onClick={() => {
+                    URL.revokeObjectURL(draft.audioUrl!);
+                    setDraft((d) => ({ ...d, audioUrl: undefined, prompt: "" }));
+                  }}
+                >
+                  ✕ Delete recording &amp; re-record
+                </Box>
               </Box>
             )}
 
@@ -1092,6 +1106,39 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
               </Grid>
 
               <Box>
+                <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.06em" mb="6px">Ends at <Box as="span" fontWeight="400" textTransform="none" letterSpacing="normal">(optional)</Box></Text>
+                <Grid templateColumns="1fr 1fr" gap="8px">
+                  <Box
+                    as="input"
+                    type="date"
+                    {...inputBase as any}
+                    min={new Date().toISOString().slice(0, 10)}
+                    value={draft.expiresDate ?? ""}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setDraft((d) => ({ ...d, expiresDate: e.target.value || undefined }))
+                    }
+                    style={{ colorScheme: "light dark" }}
+                  />
+                  <Box
+                    as="input"
+                    type="time"
+                    {...inputBase as any}
+                    value={draft.expiresTime ?? ""}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setDraft((d) => ({ ...d, expiresTime: e.target.value || undefined }))
+                    }
+                    style={{ colorScheme: "light dark" }}
+                  />
+                </Grid>
+                {draft.expiresDate && !draft.expiresTime && (
+                  <Text fontFamily={FONT} fontSize="11px" color="#f59e0b" mt="4px">Pick a time too</Text>
+                )}
+                {draft.expiresDate && draft.expiresTime && new Date(`${draft.expiresDate}T${draft.expiresTime}`) <= new Date() && (
+                  <Text fontFamily={FONT} fontSize="11px" color="#dc2626" mt="4px">End time must be in the future</Text>
+                )}
+              </Box>
+
+              <Box>
                 <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.06em" mb="6px">Description</Text>
                 <Textarea
                   fontFamily={FONT} fontSize="14px" color={TEXT}
@@ -1114,9 +1161,9 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
               {...btnPrimary}
               h="48px" mt="auto"
               fontSize="14px"
-              opacity={isPosting || !canGenerate ? 0.6 : 1}
-              cursor={isPosting || !canGenerate ? "not-allowed" : "pointer"}
-              onClick={!isPosting && canGenerate ? postListing : undefined}
+              opacity={isPosting || !canPublish ? 0.6 : 1}
+              cursor={isPosting || !canPublish ? "not-allowed" : "pointer"}
+              onClick={!isPosting && canPublish ? postListing : undefined}
               gap="8px"
             >
               {isPosting && <Spinner size="xs" />}
@@ -1137,6 +1184,27 @@ type WallActivity = {
   tone: "sale" | "state" | "info";
 };
 
+function useWallCountdown(expiresAt?: string | null) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!expiresAt) return;
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [expiresAt]);
+}
+
+function fmtWallCountdown(expiresAt: string): string {
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (ms <= 0) return "Ended";
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
+  if (m > 0) return `${m}m ${String(sec).padStart(2, "0")}s`;
+  return `${sec}s`;
+}
+
 function LiveWallPage() {
   const { slug = "" } = useParams();
   const navigate = useNavigate();
@@ -1146,6 +1214,7 @@ function LiveWallPage() {
   const [activity, setActivity] = useState<WallActivity[]>([]);
   const [celebration, setCelebration] = useState<CelebrationData | null>(null);
   const dropRef = useRef<DropDetail | null>(null);
+  useWallCountdown(drop?.expires_at);
 
   useEffect(() => {
     dropRef.current = drop;
@@ -1171,7 +1240,7 @@ function LiveWallPage() {
         if (!active) return;
         setDrop(result);
         pushActivity(
-          result.state === "live" || result.state === "partially_sold"
+          result.state === "live"
             ? "Wall ready. Buyers can scan and pay now."
             : `Drop is ${dropStateLabel(result.state).toLowerCase()}.`,
           "info",
@@ -1311,79 +1380,86 @@ function LiveWallPage() {
   }
 
   const checkoutUrl = buyerCheckoutUrl(drop.slug);
-  const isLive = drop.state === "live" || drop.state === "partially_sold";
-  const dotClass = drop.state === "live" ? "dot-live" : drop.state === "partially_sold" ? "dot-selling" : undefined;
+  const stateLabel = dropStateLabel(drop.state);
+  const ctaLabel =
+    drop.state === "sold_out" ? "Sold out"
+    : drop.state === "draft" ? "Preparing to go live"
+    : "Scan to pay instantly";
+  const isLive = drop.state === "live";
+  const dotClass = drop.state === "live" ? "dot-live" : undefined;
   const isSoldOut = drop.state === "sold_out";
-  const remaining = Math.max(0, drop.inventory);
   const total = drop.inventory + drop.sold_count;
   const soldPct = total > 0 ? Math.min(100, Math.round((drop.sold_count / total) * 100)) : 0;
-  const fmtEur = (cents: number) => `€ ${(cents / 100).toFixed(2).replace(".", ",")}`;
-
 
   return (
-    <Box minH="100dvh" bg={BG} position="relative" overflow="hidden">
-      {/* Animated background */}
-      <Box className="login-bg">
-        <Box className="lorb lorb-1" />
-        <Box className="lorb lorb-2" />
-        <Box className="lorb lorb-3" />
-        <Box className="lorb lorb-4" />
-      </Box>
-
-      {/* Nav */}
+    <Box minH="100dvh" bg={PANEL} color="white" position="relative" overflow="hidden">
       <Box
-        className="glass-nav"
-        position="sticky"
-        top={0}
-        zIndex={10}
-        px={{ base: "18px", md: "32px" }}
-        h="60px"
-        display="grid"
-        gridTemplateColumns="auto minmax(0,1fr) auto"
-        alignItems="center"
-        gap="12px"
-      >
-        {/* Left: back arrow + logo (logo hidden on mobile) */}
-        <Flex align="center" gap="12px" minW={0}>
-          <Box
-            as="button"
-            bg="none"
-            border="none"
-            color={TEXT}
-            cursor="pointer"
-            display="inline-flex"
-            alignItems="center"
-            p="4px"
-            flexShrink={0}
-            _hover={{ opacity: 0.6 }}
-            onClick={() => navigate("/dashboard")}
-          >
-            <svg width="28" height="20" viewBox="0 0 36 24" fill="none">
-              <path d="M34 12H2M2 12l10-9M2 12l10 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </Box>
-          <Box h="16px" w="1px" bg={BORDER} flexShrink={0} display={{ base: "none", md: "block" }} />
-          <Box display={{ base: "none", md: "block" }}>
-            <BunqWordmark height={32} />
-          </Box>
-        </Flex>
+        position="absolute"
+        inset={0}
+        bg="radial-gradient(circle at 14% 18%, rgba(0,213,75,0.18), transparent 32%), radial-gradient(circle at 85% 18%, rgba(62,137,255,0.17), transparent 28%), radial-gradient(circle at 50% 92%, rgba(255,157,64,0.20), transparent 34%), linear-gradient(180deg, #04080c 0%, #09131b 42%, #071018 100%)"
+      />
+      <Box
+        position="absolute"
+        insetX="-10%"
+        top="-24%"
+        h="420px"
+        bg="radial-gradient(circle, rgba(255,255,255,0.18), transparent 60%)"
+        transform="rotate(-8deg)"
+        opacity={0.28}
+        filter="blur(48px)"
+      />
 
-        {/* Center: full title */}
-        <Text fontFamily={FONT} fontSize={{ base: "12px", sm: "14px" }} fontWeight="600" color={TEXT} textAlign="center" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis" display={{ base: "none", sm: "block" }}>
-          {drop.title}
-        </Text>
+      <Box position="relative" zIndex={1} px={{ base: "18px", md: "28px", xl: "40px" }} py={{ base: "18px", md: "24px" }}>
+        <Flex align="center" justify="space-between" gap="12px" mb={{ base: "18px", md: "24px" }} wrap="wrap">
+          <Flex align="center" gap="10px">
+            <Box
+              w="10px"
+              h="10px"
+              borderRadius="50%"
+              bg={drop.state === "live" ? G : "whiteAlpha.500"}
+              boxShadow={drop.state === "live" ? "0 0 0 8px rgba(0,213,75,0.16)" : "none"}
+            />
+            <Text fontFamily={FONT} fontSize="12px" fontWeight="700" color="whiteAlpha.700" textTransform="uppercase" letterSpacing="0.16em">
+              FlashDrop Live Wall
+            </Text>
+          </Flex>
 
-        {/* Right: live status */}
-        <Flex align="center" gap="7px" justify="flex-end">
-          <Box
-            w="7px" h="7px" borderRadius="50%"
-            position="relative"
-            className={[dotClass, isLive ? "live-pulse" : undefined].filter(Boolean).join(" ") || undefined}
-            flexShrink={0}
-          />
-          <Text fontFamily={FONT} fontSize="12px" fontWeight="600" color={isLive ? TEXT : MUTED} whiteSpace="nowrap">
-            {dropStateLabel(drop.state)}
-          </Text>
+          <Flex align="center" gap="10px" wrap="wrap">
+            <Box
+              as="button"
+              border="1px solid rgba(255,255,255,0.14)"
+              borderRadius="999px"
+              px="14px"
+              h="38px"
+              display="flex"
+              alignItems="center"
+              fontFamily={FONT}
+              fontSize="13px"
+              fontWeight="600"
+              bg="rgba(255,255,255,0.06)"
+              color="white"
+              cursor="pointer"
+              onClick={() => window.open(checkoutUrl, "_blank", "noopener,noreferrer")}
+            >
+              Open buyer checkout
+            </Box>
+            <Box
+              as="button"
+              border="1px solid rgba(255,255,255,0.12)"
+              borderRadius="999px"
+              px="14px"
+              h="38px"
+              bg="rgba(255,255,255,0.04)"
+              color="white"
+              fontFamily={FONT}
+              fontSize="13px"
+              fontWeight="600"
+              cursor="pointer"
+              onClick={() => navigate("/dashboard")}
+            >
+              Exit wall
+            </Box>
+          </Flex>
         </Flex>
       </Box>
 
@@ -1446,26 +1522,29 @@ function LiveWallPage() {
                 </Text>
               )}
 
-              {/* Stats */}
-              <Box display="flex" flexDirection="column" gap="10px" mt="20px">
-                <Box className="glass-card" borderRadius="14px" p={{ base: "14px", md: "16px" }}>
-                  <Text fontFamily={FONT} fontSize="10px" fontWeight="700" color={MUTED} textTransform="uppercase" letterSpacing="0.08em">Price</Text>
-                  <Text fontFamily={FONT} fontSize={{ base: "26px", md: "32px" }} fontWeight="700" letterSpacing="-0.8px" color={TEXT} mt="6px" whiteSpace="nowrap">
-                    {fmtEur(drop.price_cents)}
-                  </Text>
-                </Box>
-                <SimpleGrid columns={2} gap="10px">
-                  {[
-                    { label: "Remaining", value: String(remaining) },
-                    { label: "Sold", value: String(drop.sold_count) },
-                  ].map((s) => (
-                    <Box key={s.label} className="glass-card" borderRadius="14px" p={{ base: "14px", md: "16px" }}>
-                      <Text fontFamily={FONT} fontSize="10px" fontWeight="700" color={MUTED} textTransform="uppercase" letterSpacing="0.08em">{s.label}</Text>
-                      <Text fontFamily={FONT} fontSize={{ base: "24px", md: "28px" }} fontWeight="700" letterSpacing="-0.6px" color={TEXT} mt="6px">{s.value}</Text>
-                    </Box>
-                  ))}
-                </SimpleGrid>
-              </Box>
+                <SimpleGrid columns={{ base: 2, md: drop.expires_at ? 4 : 3 }} gap="12px" mt={{ base: "24px", xl: "28px" }}>
+                {[
+                  { label: "Price", value: `€ ${eurosFromCents(drop.price_cents)}` },
+                  { label: "Remaining", value: String(Math.max(0, drop.inventory)) },
+                  { label: "Sold", value: String(drop.sold_count) },
+                  ...(drop.expires_at ? [{ label: "Ends in", value: fmtWallCountdown(drop.expires_at) }] : []),
+                ].map((item) => (
+                  <Box
+                    key={item.label}
+                    borderRadius="18px"
+                    p={{ base: "16px", md: "18px" }}
+                    bg="rgba(255,255,255,0.06)"
+                    border="1px solid rgba(255,255,255,0.09)"
+                  >
+                    <Text fontFamily={FONT} fontSize="11px" fontWeight="700" color="whiteAlpha.600" textTransform="uppercase" letterSpacing="0.08em">
+                      {item.label}
+                    </Text>
+                    <Text fontFamily={FONT} fontSize={{ base: "24px", md: "28px" }} fontWeight="700" letterSpacing="-0.8px" mt="10px">
+                      {item.value}
+                    </Text>
+                  </Box>
+                ))}
+              </SimpleGrid>
 
               {/* Inventory progress bar */}
               {total > 0 && (
