@@ -21,7 +21,7 @@ export function BunqQrPanel({
       border="1px solid"
       borderColor={BORDER}
       borderRadius="10px"
-      align="start"
+      align="center"
       gap="14px"
       p="12px"
     >

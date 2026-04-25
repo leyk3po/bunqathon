@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Box, Flex, Text } from "@chakra-ui/react";
+import { Box, Flex, QrCode, Text } from "@chakra-ui/react";
 import { api, buyerCheckoutUrl, eurosFromCents, type DropState } from "../api";
-import { TEXT, MUTED, FONT } from "../theme/tokens";
+import { TEXT, MUTED, FONT, CARD, BORDER } from "../theme/tokens";
 import { ProductTileImage } from "./ProductTileImage";
 import { BunqQrPanel } from "./BunqQrPanel";
 import { GlassCard } from "./GlassCard";
@@ -59,6 +59,96 @@ function useCountdown(expiresAt?: string) {
     return () => clearInterval(id);
   }, [expiresAt]);
   return tick;
+}
+
+function UnlistedQrPlaceholder({ state, price }: { state: DropState; price: string }) {
+  const isArchived = state === "archived";
+  const headline = isArchived ? "archived" : "unlisted";
+  const subline = isArchived ? "no longer scannable" : "publish to enable QR";
+  const hint = isArchived
+    ? "This drop is archived. Buyers can no longer scan or pay until you republish it."
+    : "Save the listing as live to mint a fresh bunq.me QR that buyers can scan to pay.";
+
+  return (
+    <Flex
+      bg={CARD}
+      border="1px solid"
+      borderColor={BORDER}
+      borderRadius="10px"
+      align="center"
+      gap="14px"
+      p="12px"
+      minH="165px"
+    >
+      <Box position="relative" flexShrink={0} aria-hidden>
+        <QrCode.Root
+          bg="white"
+          color="#111111"
+          border="1px solid"
+          borderColor="rgba(17,17,17,0.14)"
+          borderRadius="8px"
+          boxShadow="0 10px 24px rgba(0,0,0,0.18)"
+          p="6px"
+          size="sm"
+          value="https://flashdrop.local/unlisted"
+          flexShrink={0}
+          style={{ filter: "grayscale(1) contrast(0.6) brightness(1.05)", opacity: 0.55 }}
+        >
+          <QrCode.Frame>
+            <QrCode.Pattern />
+          </QrCode.Frame>
+        </QrCode.Root>
+        <Flex
+          position="absolute"
+          inset={0}
+          align="center"
+          justify="center"
+          pointerEvents="none"
+        >
+          <Box
+            bg="rgba(0,0,0,0.78)"
+            color="#fff"
+            fontFamily={FONT}
+            fontSize="9px"
+            fontWeight="800"
+            letterSpacing="0.18em"
+            textTransform="uppercase"
+            px="8px"
+            py="4px"
+            borderRadius="4px"
+          >
+            {isArchived ? "archived" : "unlisted"}
+          </Box>
+        </Flex>
+      </Box>
+      <Box minW={0}>
+        <Text fontFamily={FONT} fontSize="10px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.06em" mb="2px">
+          {headline}
+        </Text>
+        <Text fontFamily={FONT} fontSize="20px" fontWeight="700" color={TEXT} letterSpacing="-0.5px" opacity={0.55}>
+          {fmt(price)}
+        </Text>
+        <Text fontFamily={FONT} fontSize="11px" color={MUTED} mt="1px">
+          {subline}
+        </Text>
+        <Text fontFamily={FONT} fontSize="10px" color={MUTED} mt="6px" lineHeight="1.45">
+          {hint}
+        </Text>
+        <Text
+          fontFamily={FONT}
+          fontSize="10px"
+          color={MUTED}
+          textDecoration="underline"
+          textUnderlineOffset="2px"
+          display="inline-block"
+          mt="8px"
+          opacity={0.5}
+        >
+          QR appears once published
+        </Text>
+      </Box>
+    </Flex>
+  );
 }
 
 export function ListingCard({
@@ -321,7 +411,7 @@ export function ListingCard({
           {listing.description || "No description yet."}
         </Text>
 
-        <Flex align="center" justify="space-between" mb={listing.bunqTabUrl ? "12px" : 0}>
+        <Flex align="center" justify="space-between" mb="12px">
           <Text fontFamily={FONT} fontSize="12px" color={MUTED}>
             {listing.stock} in stock · {listing.createdAt}
           </Text>
@@ -332,12 +422,14 @@ export function ListingCard({
           )}
         </Flex>
 
-        {listing.bunqTabUrl && (
+        {(st === "live" || st === "sold_out") && listing.bunqTabUrl ? (
           <BunqQrPanel
             url={buyerCheckoutUrl(listing.slug)}
             price={listing.price}
             bunqUrl={listing.bunqTabUrl}
           />
+        ) : (
+          <UnlistedQrPlaceholder state={st} price={listing.price} />
         )}
       </Box>
     </GlassCard>
