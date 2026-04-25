@@ -327,7 +327,7 @@ def apply_payment_event(
 
     if webhook_payload is not None:
         if webhook_event_id:
-            record_event_if_new(
+            inserted = record_event_if_new(
                 db,
                 event_type="webhook.bunq.payment_received",
                 source=EventSource.webhook,
@@ -336,6 +336,8 @@ def apply_payment_event(
                 external_id=webhook_event_id,
                 payload=webhook_payload,
             )
+            if inserted is None:
+                return drop, payment
         else:
             record_event(
                 db,
@@ -345,6 +347,10 @@ def apply_payment_event(
                 payment=payment,
                 payload=webhook_payload,
             )
+
+    if payment.status == PaymentStatus.paid and new_status == PaymentStatus.paid:
+        db.commit()
+        return drop, payment
 
     payment.status = new_status
     if amount_cents is not None:

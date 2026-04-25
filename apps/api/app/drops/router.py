@@ -15,6 +15,7 @@ from app.drops.schemas import (
     GeneratePreviewRequest,
     GeneratePreviewResponse,
 )
+from app.integrations import bunq
 from app.integrations import ai
 
 router = APIRouter(prefix="/drops", tags=["drops"])
@@ -104,6 +105,10 @@ def move_drop_to_review(drop_id: str, db: Session = Depends(get_db)) -> Drop:
 def publish_drop(drop_id: str, db: Session = Depends(get_db)) -> Drop:
     try:
         return service.publish_drop(db, drop_id)
+    except bunq.BunqConfigurationError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    except bunq.BunqUpstreamError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
     except service.DropError as exc:
         raise _translate(exc) from exc
 

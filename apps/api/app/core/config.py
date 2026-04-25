@@ -5,6 +5,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
+_DEFAULT_BUNQ_CONTEXT_FILE = str(Path(__file__).resolve().parent.parent.parent / ".bunq_context.json")
 
 
 @dataclass(frozen=True)
@@ -17,6 +18,22 @@ class Settings:
     anthropic_model: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
     anthropic_api_url: str = os.getenv("ANTHROPIC_API_URL", "https://api.anthropic.com/v1/messages")
     anthropic_timeout_seconds: float = float(os.getenv("ANTHROPIC_TIMEOUT_SECONDS", "20"))
+    bunq_api_key: str = os.getenv("BUNQ_API_KEY", "")
+    bunq_sandbox: bool = os.getenv("BUNQ_SANDBOX", "true").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    bunq_callback_url: str = os.getenv("BUNQ_CALLBACK_URL", "").strip()
+    bunq_context_file: str = os.getenv("BUNQ_CONTEXT_FILE", "").strip() or _DEFAULT_BUNQ_CONTEXT_FILE
+    bunq_monetary_account_id: int | None = (
+        int(os.getenv("BUNQ_MONETARY_ACCOUNT_ID", "").strip())
+        if os.getenv("BUNQ_MONETARY_ACCOUNT_ID", "").strip()
+        else None
+    )
+    bunq_timeout_seconds: float = float(os.getenv("BUNQ_TIMEOUT_SECONDS", "20"))
+    bunq_redirect_base_url: str = os.getenv("BUNQ_REDIRECT_BASE_URL", "").strip()
     cors_origins: list[str] = field(
         default_factory=lambda: [
             origin.strip()

@@ -19,3 +19,8 @@ class BunqPaymentEvent(BaseModel):
     reference: str = Field(min_length=1)
     amount_cents: int | None = None
     status: PaymentStatus = PaymentStatus.paid
+
+
+class BunqRegisterCallbacksRequest(BaseModel):
+    callback_url: str | None = None
+    categories: list[str] = Field(default_factory=lambda: ["TAB_RESULT"])
