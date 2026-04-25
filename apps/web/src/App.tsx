@@ -49,7 +49,7 @@ function dropToListing(drop: DropPublic): Listing {
     id: drop.id, slug: drop.slug, title: drop.title,
     description: drop.description ?? "", price: eurosFromCents(drop.price_cents),
     stock: drop.inventory - drop.sold_count, category: "FlashDrop",
-    imageUrl: drop.media_url ?? "", prompt: "", status,
+    imageUrl: drop.media_url ?? "", prompt: "", status, state: drop.state,
     createdAt: new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(drop.created_at)),
     bunqTabUrl: drop.bunq_tab_url,
   };
@@ -298,7 +298,7 @@ function DashboardPage() {
     setLoading(true); setLoadError("");
     try {
       const drops = await api.listDrops({ seller_id: sellerId || undefined, limit: 100 });
-      setListings(drops.map(dropToListing));
+      setListings(drops.filter((d) => d.state !== "archived").map(dropToListing));
     } catch {
       setLoadError("Could not reach backend.");
     } finally {
@@ -376,10 +376,18 @@ function DashboardPage() {
               {...btnOutline}
               h="32px"
               px="12px"
-              fontSize="12px"
+              gap="6px"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
               onClick={() => navigate("/")}
+              _hover={{ color: "red.500" }}
             >
-              Exit
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                <path d="M5 3h7a2 2 0 0 1 2 2v2h-2V5H5v14h7v-2h2v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" fill="currentColor" />
+                <path d="M16 8l4 4-4 4v-3H9v-2h7V8Z" fill="currentColor" />
+              </svg>
+              <Text fontFamily={FONT} fontSize="12px" fontWeight="500">Log out</Text>
             </Box>
           </Flex>
         </Flex>
@@ -499,6 +507,7 @@ function DashboardPage() {
           listing={editTarget}
           onClose={() => setEditTarget(null)}
           onSave={(u) => { updateListing(editTarget.id, u); setEditTarget(null); }}
+          onArchive={() => { setListings((cur) => cur.filter((l) => l.id !== editTarget.id)); setEditTarget(null); }}
         />
       )}
       {celebration && <PaymentCelebration data={celebration} onDone={() => setCelebration(null)} />}
@@ -645,7 +654,10 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
       style={{ backdropFilter: "blur(6px)" }}
     >
       <Box
-        className="glass-card"
+        bg={CARD}
+        border="1px solid"
+        borderColor={BORDER}
+        boxShadow="0 8px 40px rgba(0,0,0,0.18)"
         borderRadius={{ base: "0", md: "16px" }}
         w="full"
         maxW="1040px"
@@ -856,7 +868,7 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
               onClick={!isPosting && canGenerate ? postListing : undefined}
               gap="8px"
             >
-              {isPosting ? <Spinner size="xs" /> : null}
+              {isPosting && <Spinner size="xs" />}
               {isPosting ? "Publishing…" : "Publish to bunq"}
               {!isPosting && <IconArrow />}
             </Box>

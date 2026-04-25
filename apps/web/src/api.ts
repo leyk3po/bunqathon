@@ -147,6 +147,9 @@ export const api = {
   archive: (id: string): Promise<DropDetail> =>
     request<DropDetail>(`/drops/${encodeURIComponent(id)}/archive`, { method: "POST" }),
 
+  getDropEvents: (slug: string): Promise<Record<string, unknown>[]> =>
+    request<Record<string, unknown>[]>(`/drops/${encodeURIComponent(slug)}/events`),
+
   streamDrop: (slug: string): EventSource => new EventSource(apiUrl(`/drops/${encodeURIComponent(slug)}/stream`)),
 };
 

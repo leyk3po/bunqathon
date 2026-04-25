@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Box, Flex, Grid, Text, Textarea } from "@chakra-ui/react";
-import { api, centsFromEuros } from "../api";
-import { G, DARK, INK_FG, CARD, SURFACE, BORDER, TEXT, MUTED, FONT } from "../theme/tokens";
-import { GlassCard } from "./GlassCard";
+import { api, centsFromEuros, type DropState } from "../api";
+import { DARK, INK_FG, CARD, SURFACE, BORDER, TEXT, MUTED, FONT } from "../theme/tokens";
 import { BunqQrPanel } from "./BunqQrPanel";
 import type { Listing } from "./ListingCard";
 
@@ -34,17 +33,35 @@ const inputStyle = {
   _focusVisible: { borderColor: DARK, boxShadow: "none", outline: "none" },
 } as const;
 
-export function EditModal({ listing, onClose, onSave }: {
+function stateLabel(state: DropState | undefined): string {
+  switch (state) {
+    case "live":           return "Live";
+    case "partially_sold": return "Selling";
+    case "sold_out":       return "Sold out";
+    case "paused":         return "Paused";
+    case "review":
+    case "processing":     return "In review";
+    case "expired":        return "Expired";
+    case "archived":       return "Archived";
+    default:               return "Draft";
+  }
+}
+
+export function EditModal({ listing, onClose, onSave, onArchive }: {
   listing: Listing;
   onClose: () => void;
   onSave: (u: Partial<Listing>) => void;
+  onArchive: () => void;
 }) {
   const [title, setTitle]      = useState(listing.title);
   const [description, setDesc] = useState(listing.description);
   const [price, setPrice]      = useState(listing.price);
   const [stock, setStock]      = useState(listing.stock);
   const [saving, setSaving]    = useState(false);
+  const [acting, setActing]    = useState(false);
   const [error, setError]      = useState("");
+
+  const state = listing.state;
 
   const handleSave = async () => {
     setSaving(true); setError("");
@@ -64,6 +81,45 @@ export function EditModal({ listing, onClose, onSave }: {
     }
   };
 
+  const runAction = async (fn: () => Promise<unknown>, update: Partial<Listing>) => {
+    setActing(true); setError("");
+    try {
+      await fn();
+      onSave(update);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Action failed");
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    setActing(true); setError("");
+    try {
+      await api.archive(listing.id);
+      onArchive();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Archive failed");
+      setActing(false);
+    }
+  };
+
+  const busy = saving || acting;
+
+  // Primary action based on current state
+  type Action = { label: string; fn: () => void } | null;
+  const primaryAction: Action =
+    state === "draft"
+      ? { label: "Submit for review", fn: () => runAction(() => api.moveToReview(listing.id), { state: "review", status: "draft" }) }
+    : state === "review"
+      ? { label: "Publish now", fn: () => runAction(() => api.publish(listing.id), { state: "live", status: "live" }) }
+    : state === "live" || state === "partially_sold"
+      ? { label: "Pause drop", fn: () => runAction(() => api.pause(listing.id), { state: "paused", status: "draft" }) }
+    : state === "paused"
+      ? { label: "Resume drop", fn: () => runAction(() => api.resume(listing.id), { state: "live", status: "live" }) }
+    : null;
+
   return (
     <Flex
       align="center"
@@ -76,7 +132,11 @@ export function EditModal({ listing, onClose, onSave }: {
       onClick={onClose}
       style={{ backdropFilter: "blur(4px)" }}
     >
-      <GlassCard
+      <Box
+        bg={CARD}
+        border="1px solid"
+        borderColor={BORDER}
+        boxShadow="0 8px 40px rgba(0,0,0,0.18)"
         borderRadius="16px"
         maxW="500px"
         w="full"
@@ -95,8 +155,8 @@ export function EditModal({ listing, onClose, onSave }: {
           gap="12px"
         >
           <Box flex={1} minW={0}>
-            <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={G} textTransform="uppercase" letterSpacing="0.06em" mb="2px">
-              Edit listing
+            <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.06em" mb="2px">
+              {stateLabel(state)} · Edit listing
             </Text>
             <Text fontFamily={FONT} fontSize="17px" fontWeight="600" color={TEXT} letterSpacing="-0.3px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
               {listing.title}
@@ -179,53 +239,84 @@ export function EditModal({ listing, onClose, onSave }: {
             <Text fontFamily={FONT} fontSize="13px" color="red.500" mt="12px">{error}</Text>
           )}
 
-          <Flex mt="20px" gap="10px">
-            <Box
-              as="button"
-              flex={1}
-              h="44px"
-              bg={DARK}
-              color={INK_FG}
-              borderRadius="8px"
-              fontFamily={FONT}
-              fontSize="14px"
-              fontWeight="600"
-              cursor={saving ? "not-allowed" : "pointer"}
-              opacity={saving ? 0.7 : 1}
-              border="none"
-              _hover={{ opacity: saving ? 0.7 : 0.9 }}
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-              onClick={saving ? undefined : handleSave}
-            >
-              {saving ? "Saving…" : "Save changes"}
+          {/* Save */}
+          <Box
+            as="button"
+            w="full"
+            h="44px"
+            mt="20px"
+            bg={DARK}
+            color={INK_FG}
+            borderRadius="8px"
+            fontFamily={FONT}
+            fontSize="14px"
+            fontWeight="600"
+            cursor={busy ? "not-allowed" : "pointer"}
+            opacity={busy ? 0.7 : 1}
+            border="none"
+            _hover={{ opacity: busy ? 0.7 : 0.9 }}
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            onClick={busy ? undefined : handleSave}
+          >
+            {saving ? "Saving…" : "Save changes"}
+          </Box>
+
+          {/* State transitions */}
+          {(primaryAction || state !== "archived") && (
+            <Box mt="12px" display="flex" flexDirection="column" gap="8px">
+              {primaryAction && (
+                <Box
+                  as="button"
+                  w="full"
+                  h="40px"
+                  bg={SURFACE}
+                  color={TEXT}
+                  borderRadius="8px"
+                  fontFamily={FONT}
+                  fontSize="13px"
+                  fontWeight="600"
+                  cursor={busy ? "not-allowed" : "pointer"}
+                  opacity={busy ? 0.6 : 1}
+                  border="1px solid"
+                  borderColor={BORDER}
+                  _hover={{ bg: BORDER }}
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  onClick={busy ? undefined : primaryAction.fn}
+                >
+                  {acting ? "Working…" : primaryAction.label}
+                </Box>
+              )}
+              {state !== "archived" && (
+                <Box
+                  as="button"
+                  w="full"
+                  h="36px"
+                  bg="transparent"
+                  color={MUTED}
+                  borderRadius="8px"
+                  fontFamily={FONT}
+                  fontSize="12px"
+                  fontWeight="500"
+                  cursor={busy ? "not-allowed" : "pointer"}
+                  opacity={busy ? 0.5 : 1}
+                  border="none"
+                  _hover={{ color: "red.500" }}
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  onClick={busy ? undefined : handleArchive}
+                >
+                  {acting ? "Working…" : "Archive listing"}
+                </Box>
+              )}
             </Box>
-            <Box
-              as="button"
-              flexShrink={0}
-              h="44px"
-              px="20px"
-              bg={CARD}
-              color={TEXT}
-              borderRadius="8px"
-              fontFamily={FONT}
-              fontSize="14px"
-              fontWeight="500"
-              cursor="pointer"
-              border="1px solid"
-              borderColor={BORDER}
-              _hover={{ bg: SURFACE }}
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-              onClick={onClose}
-            >
-              Cancel
-            </Box>
-          </Flex>
+          )}
         </Box>
-      </GlassCard>
+      </Box>
     </Flex>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
-import { api, eurosFromCents } from "../api";
+import { api, eurosFromCents, type DropState } from "../api";
 import { TEXT, MUTED, FONT } from "../theme/tokens";
 import { ProductTileImage } from "./ProductTileImage";
 import { BunqQrPanel } from "./BunqQrPanel";
@@ -20,6 +20,7 @@ export type Listing = {
   imageUrl: string;
   prompt: string;
   status: ListingStatus;
+  state?: DropState;
   createdAt: string;
   audioUrl?: string;
   bunqTabUrl?: string | null;
@@ -68,8 +69,53 @@ export function ListingCard({
     return () => es.close();
   }, [listing.slug, listing.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const isLive = listing.status === "live";
-  const isSold = listing.status === "sold";
+  const st = listing.state ?? (listing.status === "live" ? "live" : listing.status === "sold" ? "sold_out" : "draft");
+
+  function StatusBadge() {
+    if (st === "live" || st === "partially_sold") {
+      return (
+        <Flex align="center" gap="5px" bg="white" borderRadius="20px" px="8px" py="4px" boxShadow="0 1px 6px rgba(0,0,0,0.14)">
+          <Box bg="black" borderRadius="full" h="6px" w="6px" flexShrink={0} position="relative" className="live-pulse" />
+          <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color="black">
+            {st === "partially_sold" ? "Selling" : "Live"}
+          </Text>
+        </Flex>
+      );
+    }
+    if (st === "sold_out") {
+      return (
+        <Box bg="rgba(0,0,0,0.75)" borderRadius="20px" px="8px" py="4px" style={{ backdropFilter: "blur(6px)" }}>
+          <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color="white">Sold out</Text>
+        </Box>
+      );
+    }
+    if (st === "review" || st === "processing") {
+      return (
+        <Box bg="rgba(200,140,20,0.85)" borderRadius="20px" px="8px" py="4px" style={{ backdropFilter: "blur(6px)" }}>
+          <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color="white">In review</Text>
+        </Box>
+      );
+    }
+    if (st === "paused") {
+      return (
+        <Box bg="rgba(80,80,90,0.80)" borderRadius="20px" px="8px" py="4px" style={{ backdropFilter: "blur(6px)" }}>
+          <Text fontFamily={FONT} fontSize="11px" fontWeight="500" color="white">Paused</Text>
+        </Box>
+      );
+    }
+    if (st === "expired") {
+      return (
+        <Box bg="rgba(160,50,50,0.80)" borderRadius="20px" px="8px" py="4px" style={{ backdropFilter: "blur(6px)" }}>
+          <Text fontFamily={FONT} fontSize="11px" fontWeight="500" color="white">Expired</Text>
+        </Box>
+      );
+    }
+    return (
+      <Box bg="rgba(0,0,0,0.45)" borderRadius="20px" px="8px" py="4px" style={{ backdropFilter: "blur(6px)" }}>
+        <Text fontFamily={FONT} fontSize="11px" fontWeight="500" color="white">Draft</Text>
+      </Box>
+    );
+  }
 
   return (
     <GlassCard
@@ -83,28 +129,7 @@ export function ListingCard({
       <Box position="relative">
         <ProductTileImage imageUrl={listing.imageUrl} title={listing.title} />
         <Box position="absolute" top="10px" right="10px">
-          {isLive ? (
-            <Flex align="center" gap="5px" bg="white" borderRadius="20px" px="8px" py="4px" boxShadow="0 1px 6px rgba(0,0,0,0.14)">
-              <Box
-                bg="black"
-                borderRadius="full"
-                h="6px"
-                w="6px"
-                flexShrink={0}
-                position="relative"
-                className="live-pulse"
-              />
-              <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color="black">Live</Text>
-            </Flex>
-          ) : isSold ? (
-            <Box bg="rgba(0,0,0,0.75)" borderRadius="20px" px="8px" py="4px" style={{ backdropFilter: "blur(6px)" }}>
-              <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color="white">Sold out</Text>
-            </Box>
-          ) : (
-            <Box bg="rgba(0,0,0,0.45)" borderRadius="20px" px="8px" py="4px" style={{ backdropFilter: "blur(6px)" }}>
-              <Text fontFamily={FONT} fontSize="11px" fontWeight="500" color="white">Draft</Text>
-            </Box>
-          )}
+          <StatusBadge />
         </Box>
       </Box>
 
