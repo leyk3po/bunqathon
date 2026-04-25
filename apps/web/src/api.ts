@@ -122,9 +122,15 @@ export const api = {
   }): Promise<DropDetail> =>
     request<DropDetail>("/drops", { method: "POST", body: JSON.stringify(payload) }),
 
-  listDrops: (params?: { state?: DropState; seller_id?: string; limit?: number }): Promise<DropPublic[]> => {
+  listDrops: (params?: { status?: DropState | DropState[]; state?: DropState | DropState[]; seller_id?: string; limit?: number }): Promise<DropPublic[]> => {
     const q = new URLSearchParams();
-    if (params?.state) q.set("state", params.state);
+    const appendStatuses = (key: "status" | "state", value?: DropState | DropState[]) => {
+      if (!value) return;
+      const values = Array.isArray(value) ? value : [value];
+      values.forEach((item) => q.append(key, item));
+    };
+    if (params?.status) appendStatuses("status", params.status);
+    else appendStatuses("state", params?.state);
     if (params?.seller_id) q.set("seller_id", params.seller_id);
     if (params?.limit) q.set("limit", String(params.limit));
     const s = q.toString();

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { api, buyerCheckoutUrl, eurosFromCents, type DropState } from "../api";
 import { TEXT, MUTED, FONT } from "../theme/tokens";
@@ -40,14 +40,18 @@ function fmt(price: string) {
 export function ListingCard({
   listing,
   onUpdate,
+  onPreview,
   onEdit,
   onCelebrate,
 }: {
   listing: Listing;
   onUpdate: (u: Partial<Listing>) => void;
+  onPreview: () => void;
   onEdit: () => void;
   onCelebrate: (d: CelebrationData) => void;
 }) {
+  const [copied, setCopied] = useState(false);
+
   useEffect(() => {
     if (!listing.slug || listing.status !== "live") return;
     const es = api.streamDrop(listing.slug);
@@ -88,6 +92,92 @@ export function ListingCard({
   }, [listing.slug, listing.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const st = listing.state ?? (listing.status === "live" ? "live" : listing.status === "sold" ? "sold_out" : "draft");
+  const isShareable = st === "live" || st === "partially_sold";
+  const shareUrl = buyerCheckoutUrl(listing.slug);
+
+  const stopAndRun = (event: React.MouseEvent, action: () => void) => {
+    event.stopPropagation();
+    action();
+  };
+
+  const shareListing = async () => {
+    if (!isShareable) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: listing.title,
+          text: listing.description,
+          url: shareUrl,
+        });
+        return;
+      }
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // Share is user-cancelable, so no noisy error state.
+    }
+  };
+
+  function IconButton({
+    label,
+    children,
+    onClick,
+  }: {
+    label: string;
+    children: React.ReactNode;
+    onClick: (event: React.MouseEvent) => void;
+  }) {
+    return (
+      <Box
+        as="button"
+        aria-label={label}
+        title={label}
+        bg="rgba(255,255,255,0.92)"
+        border="1px solid rgba(0,0,0,0.08)"
+        borderRadius="50%"
+        boxShadow="0 6px 18px rgba(0,0,0,0.16)"
+        color="black"
+        cursor="pointer"
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+        h="34px"
+        w="34px"
+        onClick={onClick}
+        _hover={{ transform: "translateY(-1px)", bg: "white" }}
+      >
+        {children}
+      </Box>
+    );
+  }
+
+  function IconPreview() {
+    return (
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none">
+        <path d="M2.75 12s3.25-6.25 9.25-6.25S21.25 12 21.25 12 18 18.25 12 18.25 2.75 12 2.75 12Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M12 14.75a2.75 2.75 0 1 0 0-5.5 2.75 2.75 0 0 0 0 5.5Z" stroke="currentColor" strokeWidth="1.8" />
+      </svg>
+    );
+  }
+
+  function IconEdit() {
+    return (
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none">
+        <path d="M4.75 19.25h14.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+        <path d="m6.25 14.75-.5 3.5 3.5-.5 8.9-8.9a2.48 2.48 0 0 0-3.5-3.5l-8.4 9.4Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" />
+      </svg>
+    );
+  }
+
+  function IconShare() {
+    return (
+      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none">
+        <path d="M8.75 12.8 15.25 16.4M15.25 7.6 8.75 11.2" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+        <path d="M6.5 14.75a2.75 2.75 0 1 0 0-5.5 2.75 2.75 0 0 0 0 5.5ZM17.5 8.75a2.75 2.75 0 1 0 0-5.5 2.75 2.75 0 0 0 0 5.5ZM17.5 20.75a2.75 2.75 0 1 0 0-5.5 2.75 2.75 0 0 0 0 5.5Z" stroke="currentColor" strokeWidth="1.8" />
+      </svg>
+    );
+  }
 
   function StatusBadge() {
     if (st === "live" || st === "partially_sold") {
@@ -139,7 +229,7 @@ export function ListingCard({
     <GlassCard
       borderRadius="12px"
       cursor="pointer"
-      onClick={onEdit}
+      onClick={onPreview}
       transition="transform 180ms ease, box-shadow 180ms ease"
       _hover={{ transform: "translateY(-2px)" }}
     >
@@ -149,6 +239,19 @@ export function ListingCard({
         <Box position="absolute" top="10px" right="10px">
           <StatusBadge />
         </Box>
+        <Flex position="absolute" bottom="10px" right="10px" gap="8px">
+          <IconButton label="Preview listing" onClick={(event) => stopAndRun(event, onPreview)}>
+            <IconPreview />
+          </IconButton>
+          <IconButton label="Edit listing" onClick={(event) => stopAndRun(event, onEdit)}>
+            <IconEdit />
+          </IconButton>
+          {isShareable && (
+            <IconButton label={copied ? "Copied link" : "Share listing"} onClick={(event) => stopAndRun(event, shareListing)}>
+              <IconShare />
+            </IconButton>
+          )}
+        </Flex>
       </Box>
 
       {/* Content */}

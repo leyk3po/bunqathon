@@ -289,6 +289,19 @@ a {
   animation-delay: -4s;
 }
 
+/* Logo — invert in light mode so white logo stays visible */
+.logo-img {
+  filter: invert(1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .logo-img {
+    filter: none;
+  }
+}
+[data-theme="dark"] .logo-img {
+  filter: none;
+}
+
 /* Entrance animations */
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(20px); }

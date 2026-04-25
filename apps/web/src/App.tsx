@@ -10,6 +10,7 @@ import { VoiceWave } from "./components/VoiceWave";
 import { PaymentCelebration, type CelebrationData } from "./components/PaymentCelebration";
 import { ListingCard, type Listing } from "./components/ListingCard";
 import { EditModal } from "./components/EditModal";
+import { ListingPreviewModal } from "./components/ListingPreviewModal";
 
 // ─── Shared primitive styles ──────────────────────────────────────────────────
 const inputBase = {
@@ -40,6 +41,35 @@ const btnOutline = {
 const SELLER_KEY  = "flashdrop_seller_id";
 const getSellerId = () => sessionStorage.getItem(SELLER_KEY) ?? "";
 const setSellerId = (v: string) => sessionStorage.setItem(SELLER_KEY, v);
+
+type DropStatusFilter = DropState;
+
+const statusTabs: Array<{ value: DropStatusFilter; label: string }> = [
+  { value: "draft", label: "Draft" },
+  { value: "processing", label: "Processing" },
+  { value: "review", label: "Review" },
+  { value: "live", label: "Live" },
+  { value: "partially_sold", label: "Selling" },
+  { value: "sold_out", label: "Sold" },
+  { value: "paused", label: "Paused" },
+  { value: "expired", label: "Expired" },
+  { value: "archived", label: "Archived" },
+];
+
+function statusTabLabel(value: DropStatusFilter): string {
+  return statusTabs.find((tab) => tab.value === value)?.label ?? value;
+}
+
+function statusFilterSummary(filters: DropStatusFilter[]): string {
+  if (filters.length === 0) return "All statuses";
+  if (filters.length === 1) return statusTabLabel(filters[0]);
+  if (filters.length <= 3) return filters.map(statusTabLabel).join(" + ");
+  return `${filters.length} statuses`;
+}
+
+function listingMatchesFilter(listing: Listing, filters: DropStatusFilter[]): boolean {
+  return filters.length === 0 || (listing.state ? filters.includes(listing.state) : false);
+}
 
 function dropToListing(drop: DropPublic): Listing {
   const status =
@@ -295,7 +325,9 @@ function DashboardPage() {
   const [loadError, setLoadError]  = useState("");
   const [captureOpen, setCaptureOpen] = useState(false);
   const [editTarget, setEditTarget]   = useState<Listing | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<Listing | null>(null);
   const [celebration, setCelebration] = useState<CelebrationData | null>(null);
+  const [activeStatuses, setActiveStatuses] = useState<DropStatusFilter[]>([]);
 
   const liveCount  = listings.filter((l) => l.status === "live").length;
   const stockCount = listings.reduce((t, l) => t + l.stock, 0);
@@ -304,19 +336,35 @@ function DashboardPage() {
   const fetchDrops = useCallback(async () => {
     setLoading(true); setLoadError("");
     try {
-      const drops = await api.listDrops({ seller_id: sellerId || undefined, limit: 100 });
-      setListings(drops.filter((d) => d.state !== "archived").map(dropToListing));
+      const status = activeStatuses.length > 0 ? activeStatuses : undefined;
+      let drops = await api.listDrops({ status, seller_id: sellerId || undefined, limit: 100 });
+      if (sellerId && drops.length === 0) {
+        drops = await api.listDrops({ status, limit: 100 });
+      }
+      setListings(drops.map(dropToListing));
     } catch {
       setLoadError("Could not reach backend.");
     } finally {
       setLoading(false);
     }
-  }, [sellerId]);
+  }, [activeStatuses, sellerId]);
 
   useEffect(() => { fetchDrops(); }, [fetchDrops]);
 
   const updateListing = useCallback((id: string, u: Partial<Listing>) => {
-    setListings((cur) => cur.map((l) => l.id === id ? { ...l, ...u } : l));
+    setListings((cur) =>
+      cur
+        .map((l) => l.id === id ? { ...l, ...u } : l)
+        .filter((l) => listingMatchesFilter(l, activeStatuses))
+    );
+  }, [activeStatuses]);
+
+  const toggleStatus = useCallback((value: DropStatusFilter) => {
+    setActiveStatuses((current) =>
+      current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value]
+    );
   }, []);
 
   return (
@@ -437,7 +485,7 @@ function DashboardPage() {
           <Box>
             <Text fontFamily={FONT} fontSize="16px" fontWeight="600" color={TEXT}>Listings</Text>
             <Text fontFamily={FONT} fontSize="13px" color={MUTED} mt="2px">
-              {loading ? "Loading…" : loadError || `${listings.length} total`}
+              {loading ? "Loading…" : loadError || `${statusFilterSummary(activeStatuses)} · ${listings.length} total`}
             </Text>
           </Box>
           <Box
@@ -453,13 +501,67 @@ function DashboardPage() {
           </Box>
         </Flex>
 
+        {/* Status filters */}
+        <Box mb="16px">
+          <Flex
+            align="center"
+            gap="8px"
+            flexWrap="wrap"
+          >
+            <Box
+              as="button"
+              h="34px"
+              px="14px"
+              borderRadius="999px"
+              border="1px solid"
+              borderColor={activeStatuses.length === 0 ? TEXT : BORDER}
+              bg={activeStatuses.length === 0 ? TEXT : CARD}
+              color={activeStatuses.length === 0 ? BG : MUTED}
+              cursor="pointer"
+              fontFamily={FONT}
+              fontSize="13px"
+              fontWeight={activeStatuses.length === 0 ? "700" : "500"}
+              whiteSpace="nowrap"
+              onClick={() => setActiveStatuses([])}
+            >
+              All
+            </Box>
+            {statusTabs.map((tab) => {
+              const selected = activeStatuses.includes(tab.value);
+              return (
+                <Box
+                  as="button"
+                  key={tab.value}
+                  h="34px"
+                  px="14px"
+                  borderRadius="999px"
+                  border="1px solid"
+                  borderColor={selected ? TEXT : BORDER}
+                  bg={selected ? TEXT : CARD}
+                  color={selected ? BG : MUTED}
+                  cursor="pointer"
+                  fontFamily={FONT}
+                  fontSize="13px"
+                  fontWeight={selected ? "700" : "500"}
+                  whiteSpace="nowrap"
+                  transition="background 150ms ease, color 150ms ease, border-color 150ms ease"
+                  _hover={{ borderColor: TEXT, color: selected ? BG : TEXT }}
+                  onClick={() => toggleStatus(tab.value)}
+                >
+                  {tab.label}
+                </Box>
+              );
+            })}
+          </Flex>
+        </Box>
+
         {/* Grid */}
         {loading ? (
           <Flex justify="center" py="80px"><Spinner size="xl" /></Flex>
         ) : listings.length === 0 ? (
           <GlassCard borderRadius="12px" p="64px 24px" textAlign="center">
-            <Text fontFamily={FONT} fontSize="16px" fontWeight="600" color={TEXT} mb="6px">No listings yet</Text>
-            <Text fontFamily={FONT} fontSize="14px" color={MUTED}>Tap the button below to create your first drop.</Text>
+            <Text fontFamily={FONT} fontSize="16px" fontWeight="600" color={TEXT} mb="6px">No {statusFilterSummary(activeStatuses).toLowerCase()} listings</Text>
+            <Text fontFamily={FONT} fontSize="14px" color={MUTED}>Switch status tabs or tap the button below to create a drop.</Text>
           </GlassCard>
         ) : (
           <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} gap={{ base: "12px", md: "16px" }}>
@@ -467,6 +569,7 @@ function DashboardPage() {
               <ListingCard
                 key={l.id} listing={l}
                 onUpdate={(u) => updateListing(l.id, u)}
+                onPreview={() => setPreviewTarget(l)}
                 onEdit={() => setEditTarget(l)}
                 onCelebrate={setCelebration}
               />
@@ -506,7 +609,13 @@ function DashboardPage() {
         <CaptureOverlay
           sellerId={sellerId}
           onClose={() => setCaptureOpen(false)}
-          onPost={(l) => setListings((cur) => [l, ...cur])}
+          onPost={(l) => {
+            if (listingMatchesFilter(l, activeStatuses)) {
+              setListings((cur) => [l, ...cur]);
+            } else {
+              fetchDrops();
+            }
+          }}
         />
       )}
       {editTarget && (
@@ -515,6 +624,12 @@ function DashboardPage() {
           onClose={() => setEditTarget(null)}
           onSave={(u) => { updateListing(editTarget.id, u); setEditTarget(null); }}
           onArchive={() => { setListings((cur) => cur.filter((l) => l.id !== editTarget.id)); setEditTarget(null); }}
+        />
+      )}
+      {previewTarget && (
+        <ListingPreviewModal
+          listing={previewTarget}
+          onClose={() => setPreviewTarget(null)}
         />
       )}
       {celebration && <PaymentCelebration data={celebration} onDone={() => setCelebration(null)} />}
@@ -642,7 +757,7 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
       const created  = await api.createDrop({ title: draft.title.trim() || titleFromPrompt(draft.prompt), description: draft.description.trim(), pitch: draft.prompt.trim() || null, price_cents: centsFromEuros(draft.price), inventory: Math.max(1, draft.stock), media_url: mediaUrl, seller_id: sellerId || undefined });
       const reviewed = await api.moveToReview(created.id);
       const live     = await api.publish(reviewed.id);
-      onPost({ id: live.id, slug: live.slug, title: live.title, description: live.description, price: eurosFromCents(live.price_cents), stock: live.inventory, category: draft.category, imageUrl: draft.imageUrl, prompt: draft.prompt, status: "live", createdAt: nowTime(), audioUrl: draft.audioUrl, bunqTabUrl: live.bunq_tab_url });
+      onPost({ id: live.id, slug: live.slug, title: live.title, description: live.description, price: eurosFromCents(live.price_cents), stock: live.inventory, category: draft.category, imageUrl: draft.imageUrl, prompt: draft.prompt, status: "live", state: live.state, createdAt: nowTime(), audioUrl: draft.audioUrl, bunqTabUrl: live.bunq_tab_url });
       onClose();
     } catch (err) {
       setApiError(err instanceof Error ? err.message : "Publish failed");

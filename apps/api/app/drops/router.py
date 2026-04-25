@@ -58,11 +58,22 @@ def create_drop(payload: DropCreate, db: Session = Depends(get_db)) -> Drop:
 @router.get("", response_model=list[DropPublic])
 def list_drops(
     db: Session = Depends(get_db),
-    state: DropState | None = Query(default=None),
+    state_filter: list[DropState] | None = Query(default=None, alias="state"),
+    status_filter: list[DropState] | None = Query(default=None, alias="status"),
     seller_id: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
 ) -> list[Drop]:
-    return service.list_drops(db, state=state, seller_id=seller_id, limit=limit)
+    if state_filter is not None and status_filter is not None and set(state_filter) != set(status_filter):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "state and status query parameters must match when both are provided",
+        )
+    return service.list_drops(
+        db,
+        states=status_filter or state_filter,
+        seller_id=seller_id,
+        limit=limit,
+    )
 
 
 @router.get("/{slug}/events", response_model=list[EventLogPublic])

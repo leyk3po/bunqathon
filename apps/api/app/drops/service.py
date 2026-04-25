@@ -107,12 +107,14 @@ def create_drop(db: Session, payload: DropCreate) -> Drop:
 def list_drops(
     db: Session,
     state: DropState | None = None,
+    states: list[DropState] | None = None,
     seller_id: str | None = None,
     limit: int = 50,
 ) -> list[Drop]:
     stmt = select(Drop).order_by(Drop.created_at.desc()).limit(limit)
-    if state is not None:
-        stmt = stmt.where(Drop.state == state)
+    state_filters = states if states is not None else ([state] if state is not None else None)
+    if state_filters:
+        stmt = stmt.where(Drop.state.in_(state_filters))
     if seller_id is not None:
         stmt = stmt.where(Drop.seller_id == seller_id)
     return list(db.scalars(stmt).all())
