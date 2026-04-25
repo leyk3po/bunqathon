@@ -18,6 +18,7 @@ import {
   VStack,
 } from "@chakra-ui/react";
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { api, centsFromEuros, dataUrlToBlob, eurosFromCents } from "./api";
 
 type ListingStatus = "live" | "sold" | "draft";
 
@@ -35,6 +36,8 @@ type Listing = {
   saves: number;
   createdAt: string;
   audioUrl?: string;
+  slug?: string;
+  bunqTabUrl?: string | null;
 };
 
 type DraftListing = {
@@ -482,9 +485,13 @@ function CaptureOverlay({
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recognitionRef = useRef<{ stop: () => void } | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const remoteMediaUrlRef = useRef<string | null>(null);
+  const capturedBlobRef = useRef<Blob | null>(null);
   const [draft, setDraft] = useState<DraftListing>(emptyDraft);
   const [cameraError, setCameraError] = useState("");
+  const [apiError, setApiError] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isPosting, setIsPosting] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [stage, setStage] = useState<"capture" | "review">("capture");
 
@@ -536,14 +543,36 @@ function CaptureOverlay({
     if (!context) return;
 
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    setDraft((current) => ({ ...current, imageUrl: canvas.toDataURL("image/jpeg", 0.92) }));
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+    canvas.toBlob(
+      (blob) => {
+        capturedBlobRef.current = blob ?? null;
+        remoteMediaUrlRef.current = null; // re-upload on next generate
+      },
+      "image/jpeg",
+      0.92,
+    );
+    setDraft((current) => ({ ...current, imageUrl: dataUrl }));
   };
 
   const handleUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    capturedBlobRef.current = file;
+    remoteMediaUrlRef.current = null;
     setDraft((current) => ({ ...current, imageUrl: URL.createObjectURL(file) }));
+  };
+
+  const ensureMediaUploaded = async (): Promise<string | null> => {
+    if (remoteMediaUrlRef.current) return remoteMediaUrlRef.current;
+    if (!capturedBlobRef.current) return null;
+    const name = capturedBlobRef.current.type.startsWith("image/")
+      ? `capture-${Date.now()}.${(capturedBlobRef.current.type.split("/")[1] ?? "jpg")}`
+      : `capture-${Date.now()}.bin`;
+    const res = await api.uploadMedia(capturedBlobRef.current, name);
+    remoteMediaUrlRef.current = res.url;
+    return res.url;
   };
 
   const startVoice = async () => {
@@ -603,33 +632,101 @@ function CaptureOverlay({
     setIsRecording(false);
   };
 
-  const generateListing = () => {
+  const generateListing = async () => {
     setIsGenerating(true);
-    window.setTimeout(() => {
+    setApiError("");
+    try {
+      // If user already pasted a dataURL (e.g. from file input URL.createObjectURL), ensure we have a Blob.
+      if (!capturedBlobRef.current && draft.imageUrl.startsWith("data:")) {
+        capturedBlobRef.current = await dataUrlToBlob(draft.imageUrl);
+      }
+      const mediaUrl = await ensureMediaUploaded();
+      const pitch = draft.prompt.trim() || "Limited drop, ready to buy right now.";
+      const preview = await api.generatePreview(pitch, mediaUrl);
+      setDraft((current) => ({
+        ...current,
+        title: preview.title,
+        description: preview.description,
+        price: eurosFromCents(preview.price_cents),
+        stock: current.stock || 1,
+      }));
+      setStage("review");
+    } catch (err) {
+      console.warn("generate-preview failed, using local stub", err);
+      setApiError("AI unreachable; using local preview.");
       setDraft((current) => makeAiDraft(current));
       setStage("review");
+    } finally {
       setIsGenerating(false);
-    }, 700);
+    }
   };
 
-  const postListing = () => {
-    const aiDraft = makeAiDraft(draft);
-    onPost({
-      id: createListingId(),
-      title: aiDraft.title,
-      description: aiDraft.description,
-      price: aiDraft.price,
-      stock: aiDraft.stock,
-      category: aiDraft.category,
-      imageUrl: aiDraft.imageUrl,
-      prompt: aiDraft.prompt,
-      status: "live",
-      views: Math.floor(80 + Math.random() * 160),
-      saves: Math.floor(10 + Math.random() * 35),
-      createdAt: nowTime(),
-      audioUrl: aiDraft.audioUrl,
-    });
-    onClose();
+  const postListing = async () => {
+    setIsPosting(true);
+    setApiError("");
+    try {
+      if (!capturedBlobRef.current && draft.imageUrl.startsWith("data:")) {
+        capturedBlobRef.current = await dataUrlToBlob(draft.imageUrl);
+      }
+      const mediaUrl = await ensureMediaUploaded();
+      const title = draft.title.trim() || titleFromPrompt(draft.prompt);
+      const description = draft.description.trim() || draft.prompt.trim();
+      const pitch = draft.prompt.trim() || null;
+      const priceCents = centsFromEuros(draft.price);
+      const inventory = Math.max(1, draft.stock || 1);
+
+      const created = await api.createDrop({
+        title,
+        description,
+        pitch,
+        price_cents: priceCents,
+        inventory,
+        media_url: mediaUrl ?? null,
+      });
+      const reviewed = await api.moveToReview(created.id);
+      const live = await api.publish(reviewed.id);
+
+      onPost({
+        id: live.id,
+        title: live.title,
+        description: live.description,
+        price: eurosFromCents(live.price_cents),
+        stock: live.inventory,
+        category: draft.category || "Quick drop",
+        imageUrl: draft.imageUrl,
+        prompt: draft.prompt,
+        status: "live",
+        views: Math.floor(80 + Math.random() * 160),
+        saves: Math.floor(10 + Math.random() * 35),
+        createdAt: nowTime(),
+        audioUrl: draft.audioUrl,
+        slug: live.slug,
+        bunqTabUrl: live.bunq_tab_url,
+      });
+      onClose();
+    } catch (err) {
+      console.error("publish failed", err);
+      setApiError("Could not publish to backend. Listing kept locally.");
+      const aiDraft = makeAiDraft(draft);
+      onPost({
+        id: createListingId(),
+        title: aiDraft.title,
+        description: aiDraft.description,
+        price: aiDraft.price,
+        stock: aiDraft.stock,
+        category: aiDraft.category,
+        imageUrl: aiDraft.imageUrl,
+        prompt: aiDraft.prompt,
+        status: "live",
+        views: Math.floor(80 + Math.random() * 160),
+        saves: Math.floor(10 + Math.random() * 35),
+        createdAt: nowTime(),
+        audioUrl: aiDraft.audioUrl,
+      });
+      onClose();
+    } finally {
+      setIsPosting(false);
+    }
   };
 
   return (
@@ -807,7 +904,12 @@ function CaptureOverlay({
                       onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))}
                     />
                   </Box>
-                  <Button colorPalette="green" disabled={!canGenerate} mt={4} onClick={postListing} size="lg" w="full">
+                  {apiError ? (
+                    <Text color="orange.600" fontSize="sm" mt={2}>
+                      {apiError}
+                    </Text>
+                  ) : null}
+                  <Button colorPalette="green" disabled={!canGenerate} loading={isPosting} mt={4} onClick={postListing} size="lg" w="full">
                     Post listing
                   </Button>
                 </Card.Body>

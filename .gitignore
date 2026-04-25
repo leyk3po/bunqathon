@@ -20,6 +20,8 @@ __pycache__/
 scripts/tmux-claude.sh
 scripts/claude-handoff.sh
 scripts/live.sh
+scripts/deploy.sh
+scripts/db.sh
 apps/api/uploads/
 .playwright-mcp/
 .claude/settings.local.json
