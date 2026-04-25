@@ -19,8 +19,10 @@ __pycache__/
 .claude-panes/
 scripts/tmux-claude.sh
 scripts/claude-handoff.sh
+scripts/live.sh
 apps/api/uploads/
 .playwright-mcp/
 .claude/settings.local.json
-*ngrok.deb
-*ngrok.zip
+ngrok.deb
+ngrok.zip
+restart-backend.sh
