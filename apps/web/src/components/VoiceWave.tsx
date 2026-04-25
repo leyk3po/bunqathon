@@ -1,27 +1,41 @@
-import { Box, HStack } from "@chakra-ui/react";
-import { BUNQ_GREEN } from "../theme/tokens";
+import { Box, Flex, Text } from "@chakra-ui/react";
+import { G, FONT } from "../theme/tokens";
 
-const BAR_HEIGHTS = [28, 42, 52, 36, 60, 44, 30, 56, 40, 24, 48, 38, 54, 32];
+const BARS = [20, 32, 44, 28, 52, 36, 24, 48, 34, 20, 40, 30, 46, 26];
 
 export function VoiceWave({ active }: { active: boolean }) {
   return (
-    <HStack gap="3px" h="64px" align="center" justify="center" w="full">
-      {BAR_HEIGHTS.map((h, i) => (
-        <Box
-          key={i}
-          className={active ? "voice-bar" : undefined}
-          bg={active ? BUNQ_GREEN : "gray.200"}
-          borderRadius="full"
-          w="4px"
-          h={active ? `${h}px` : "6px"}
-          transition={active ? undefined : "height 300ms ease, background 300ms ease"}
-          style={
-            active
-              ? { animationDelay: `${(i * 0.05).toFixed(2)}s`, animationDuration: `${0.55 + (i % 5) * 0.08}s` }
-              : undefined
-          }
-        />
-      ))}
-    </HStack>
+    <Box>
+      <Flex h="52px" align="center" justify="center" gap="3px">
+        {BARS.map((h, i) => (
+          <Box
+            key={i}
+            className={active ? "voice-bar" : undefined}
+            bg={active ? G : "#e5e7eb"}
+            borderRadius="2px"
+            w="3px"
+            h={active ? `${h}px` : "4px"}
+            transition={active ? undefined : "all 300ms ease"}
+            style={active ? {
+              animationDelay: `${(i * 0.05).toFixed(2)}s`,
+              animationDuration: `${0.55 + (i % 5) * 0.08}s`,
+            } : undefined}
+          />
+        ))}
+      </Flex>
+      {active && (
+        <Text
+          fontFamily={FONT}
+          fontSize="11px"
+          fontWeight="500"
+          color={G}
+          textAlign="center"
+          mt="8px"
+          letterSpacing="0.02em"
+        >
+          Recording…
+        </Text>
+      )}
+    </Box>
   );
 }

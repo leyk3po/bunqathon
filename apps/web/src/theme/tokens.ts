@@ -1,14 +1,13 @@
-export const BUNQ_GREEN = "#00D54B";
-export const BUNQ_DARK  = "#0F1923";
-export const CREAM      = "#f6f2e9";
+export const G       = "#00D54B";   // bunq green — use only for live state, primary CTA
+export const DARK    = "#0F1923";   // near-black
+export const WHITE   = "#ffffff";
+export const BG      = "#f7f8fa";   // page background
+export const BORDER  = "#e8eaed";   // 1px borders on cards / inputs
+export const TEXT    = "#0a0a0a";   // primary text
+export const MUTED   = "#667085";   // secondary text
+export const FONT    = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
-export const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  live:           { bg: BUNQ_GREEN, color: "black" },
-  partially_sold: { bg: BUNQ_GREEN, color: "black" },
-  sold:           { bg: "#f87171", color: "white" },
-  sold_out:       { bg: "#f87171", color: "white" },
-  draft:          { bg: "#e5e7eb", color: "#4b5563" },
-  review:         { bg: "#fef9c3", color: "#92400e" },
-  paused:         { bg: "#e5e7eb", color: "#4b5563" },
-  archived:       { bg: "#e5e7eb", color: "#9ca3af" },
-};
+// Kept for backwards compat with files that still import old names
+export const BUNQ_GREEN = G;
+export const BUNQ_DARK  = DARK;
+export const CREAM      = BG;

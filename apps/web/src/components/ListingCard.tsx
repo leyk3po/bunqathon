@@ -1,10 +1,9 @@
 import { useEffect } from "react";
-import { Badge, Box, Card, Flex, Heading, HStack, Stack, Text } from "@chakra-ui/react";
+import { Box, Flex, Text } from "@chakra-ui/react";
 import { api, eurosFromCents } from "../api";
-import { BUNQ_GREEN, BUNQ_DARK } from "../theme/tokens";
+import { G, BORDER, TEXT, MUTED, FONT } from "../theme/tokens";
 import { ProductTileImage } from "./ProductTileImage";
 import { BunqQrPanel } from "./BunqQrPanel";
-import { EditIcon } from "./icons";
 import type { CelebrationData } from "./PaymentCelebration";
 
 export type ListingStatus = "live" | "sold" | "draft";
@@ -25,7 +24,7 @@ export type Listing = {
   bunqTabUrl?: string | null;
 };
 
-function formatPrice(price: string) {
+function fmt(price: string) {
   const n = Number(price);
   return `€ ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
 }
@@ -52,7 +51,7 @@ export function ListingCard({
         onUpdate({ stock: Math.max(0, newStock) });
         onCelebrate({
           title: listing.title,
-          amount: formatPrice(eurosFromCents(data.amount_cents ?? Math.round(Number(listing.price) * 100))),
+          amount: fmt(eurosFromCents(data.amount_cents ?? Math.round(Number(listing.price) * 100))),
         });
       } catch { /* ignore */ }
     });
@@ -69,72 +68,96 @@ export function ListingCard({
   }, [listing.slug, listing.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isLive = listing.status === "live";
+  const isSold = listing.status === "sold";
 
   return (
-    <Card.Root
+    <Box
       bg="white"
-      borderRadius="24px"
-      boxShadow="0 8px 32px rgba(0,0,0,0.07)"
+      border="1px solid"
+      borderColor={BORDER}
+      borderRadius="12px"
       overflow="hidden"
       cursor="pointer"
       onClick={onEdit}
-      _hover={{ boxShadow: "0 12px 40px rgba(0,0,0,0.12)", transform: "translateY(-2px)" }}
-      transition="all 200ms ease"
+      _hover={{ borderColor: "#c5c8cf", boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}
+      transition="all 180ms ease"
     >
-      <Card.Body p={4}>
-        <Box position="relative">
-          <ProductTileImage imageUrl={listing.imageUrl} title={listing.title} />
-          {isLive && (
-            <Box position="absolute" top="12px" right="12px">
+      {/* Image */}
+      <Box position="relative">
+        <ProductTileImage imageUrl={listing.imageUrl} title={listing.title} />
+        {/* Status indicator top-right */}
+        <Box position="absolute" top="10px" right="10px">
+          {isLive ? (
+            <Flex align="center" gap="5px" bg="white" borderRadius="20px" px="8px" py="4px" boxShadow="0 1px 4px rgba(0,0,0,0.12)">
               <Box
-                bg={BUNQ_GREEN}
+                bg={G}
                 borderRadius="full"
-                h="12px"
-                w="12px"
+                h="7px"
+                w="7px"
+                flexShrink={0}
                 position="relative"
                 className="live-pulse"
               />
+              <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color="black">Live</Text>
+            </Flex>
+          ) : isSold ? (
+            <Box bg="#0a0a0a" borderRadius="20px" px="8px" py="4px">
+              <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color="white">Sold out</Text>
+            </Box>
+          ) : (
+            <Box bg="rgba(0,0,0,0.5)" borderRadius="20px" px="8px" py="4px">
+              <Text fontFamily={FONT} fontSize="11px" fontWeight="500" color="white">Draft</Text>
             </Box>
           )}
         </Box>
+      </Box>
 
-        <Stack gap={3} mt={4}>
-          <Flex align="start" justify="space-between">
-            <Box flex={1} minW={0}>
-              <Heading size="md" truncate>{listing.title}</Heading>
-              <Text color="gray.500" fontSize="xs" mt="2px">{listing.createdAt}</Text>
-            </Box>
-            <Badge
-              bg={isLive ? BUNQ_GREEN : listing.status === "sold" ? "#f87171" : "#e5e7eb"}
-              color={isLive ? "black" : listing.status === "sold" ? "white" : "#4b5563"}
-              borderRadius="8px"
-              px={2}
-              ml={2}
-              fontSize="xs"
-              fontWeight="bold"
-              flexShrink={0}
-            >
-              {isLive ? "live" : listing.status}
-            </Badge>
-          </Flex>
+      {/* Content */}
+      <Box p="16px">
+        {/* Title row */}
+        <Flex align="baseline" justify="space-between" gap="8px" mb="4px">
+          <Text
+            fontFamily={FONT}
+            fontSize="15px"
+            fontWeight="600"
+            color={TEXT}
+            letterSpacing="-0.2px"
+            flex={1}
+            minW={0}
+            overflow="hidden"
+            textOverflow="ellipsis"
+            whiteSpace="nowrap"
+          >
+            {listing.title}
+          </Text>
+          <Text fontFamily={FONT} fontSize="15px" fontWeight="700" color={TEXT} letterSpacing="-0.3px" flexShrink={0}>
+            {fmt(listing.price)}
+          </Text>
+        </Flex>
 
-          <Text color="gray.500" fontSize="sm" lineClamp={2}>{listing.description}</Text>
+        {/* Description */}
+        <Text
+          fontFamily={FONT}
+          fontSize="13px"
+          color={MUTED}
+          lineHeight="1.5"
+          mb="12px"
+          overflow="hidden"
+          style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}
+        >
+          {listing.description || "No description yet."}
+        </Text>
 
-          <Flex align="center" justify="space-between">
-            <Heading size="lg" color={BUNQ_DARK}>{formatPrice(listing.price)}</Heading>
-            <Badge bg="#f0fdf4" color="#166534" borderRadius="8px" px={2} fontSize="xs">{listing.stock} left</Badge>
-          </Flex>
+        {/* Stock + time row */}
+        <Flex align="center" justify="space-between" mb={listing.bunqTabUrl ? "12px" : 0}>
+          <Text fontFamily={FONT} fontSize="12px" color={MUTED}>
+            {listing.stock} in stock · {listing.createdAt}
+          </Text>
+        </Flex>
 
-          {listing.bunqTabUrl ? (
-            <BunqQrPanel url={listing.bunqTabUrl} price={listing.price} />
-          ) : (
-            <Flex align="center" bg="#f9fafb" borderRadius="12px" p={3}>
-              <Text color="gray.400" fontSize="xs">Tap to edit listing</Text>
-              <Box ml="auto" color="gray.400"><EditIcon /></Box>
-            </Flex>
-          )}
-        </Stack>
-      </Card.Body>
-    </Card.Root>
+        {/* bunq QR */}
+        {listing.bunqTabUrl && <BunqQrPanel url={listing.bunqTabUrl} price={listing.price} />}
+      </Box>
+    </Box>
   );
 }

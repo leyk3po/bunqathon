@@ -1,22 +1,22 @@
 import { Box, HStack, Text } from "@chakra-ui/react";
-import { BUNQ_GREEN } from "../theme/tokens";
+import { G, FONT } from "../theme/tokens";
 
 export function BunqWordmark({ subtitle }: { subtitle?: string }) {
   return (
-    <HStack gap={2}>
+    <HStack gap="8px" userSelect="none">
       <Box
-        bg={BUNQ_GREEN}
-        borderRadius="10px"
-        h="32px"
-        w="32px"
+        bg={G}
+        borderRadius="6px"
+        h="28px"
+        w="28px"
         display="flex"
         alignItems="center"
         justifyContent="center"
         flexShrink={0}
       >
-        <Text fontWeight="black" color="black" fontSize="16px" lineHeight={1}>b</Text>
+        <Text fontFamily={FONT} fontWeight="700" color="black" fontSize="15px" lineHeight={1}>b</Text>
       </Box>
-      <Text fontWeight="black" fontSize="lg" letterSpacing="-0.5px">
+      <Text fontFamily={FONT} fontWeight="600" fontSize="15px" letterSpacing="-0.3px" color="inherit">
         {subtitle ? `bunq ${subtitle}` : "bunq"}
       </Text>
     </HStack>

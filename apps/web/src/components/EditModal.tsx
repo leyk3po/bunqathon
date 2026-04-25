@@ -1,15 +1,39 @@
 import { useState } from "react";
-import { Badge, Box, Button, Card, Flex, Heading, HStack, Input, SimpleGrid, Stack, Text, Textarea } from "@chakra-ui/react";
+import { Box, Flex, Grid, Text, Textarea } from "@chakra-ui/react";
 import { api, centsFromEuros } from "../api";
-import { BUNQ_GREEN } from "../theme/tokens";
+import { G, DARK, BORDER, TEXT, MUTED, FONT } from "../theme/tokens";
 import { BunqQrPanel } from "./BunqQrPanel";
 import type { Listing } from "./ListingCard";
 
-export function EditModal({
-  listing,
-  onClose,
-  onSave,
-}: {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <Box>
+      <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.06em" mb="6px">
+        {label}
+      </Text>
+      {children}
+    </Box>
+  );
+}
+
+const inputStyle = {
+  fontFamily: FONT,
+  fontSize: "14px",
+  color: TEXT,
+  bg: "white",
+  border: "1px solid",
+  borderColor: BORDER,
+  borderRadius: "8px",
+  px: "12px",
+  py: "10px",
+  h: "42px",
+  w: "full",
+  outline: "none",
+  _focus: { borderColor: DARK, boxShadow: "none", outline: "none" },
+  _focusVisible: { borderColor: DARK, boxShadow: "none", outline: "none" },
+} as const;
+
+export function EditModal({ listing, onClose, onSave }: {
   listing: Listing;
   onClose: () => void;
   onSave: (u: Partial<Listing>) => void;
@@ -22,8 +46,7 @@ export function EditModal({
   const [error, setError]      = useState("");
 
   const handleSave = async () => {
-    setSaving(true);
-    setError("");
+    setSaving(true); setError("");
     try {
       await api.updateDrop(listing.id, {
         title: title.trim() || listing.title,
@@ -43,84 +66,169 @@ export function EditModal({
   return (
     <Flex
       align="center"
-      bg="blackAlpha.700"
-      bottom={0}
+      bg="rgba(0,0,0,0.45)"
+      bottom={0} left={0} right={0} top={0}
       justify="center"
-      left={0}
       p={{ base: 3, md: 6 }}
       position="fixed"
-      right={0}
-      top={0}
       zIndex={40}
       onClick={onClose}
+      style={{ backdropFilter: "blur(4px)" }}
     >
-      <Card.Root borderRadius="28px" maxW="560px" w="full" onClick={(e) => e.stopPropagation()}>
-        <Card.Body p={6}>
-          <Flex align="center" justify="space-between" mb={5} gap={3}>
-            <Box flex={1} minW={0}>
-              <Badge bg={BUNQ_GREEN} color="black" fontWeight="bold" borderRadius="8px" px={2} mb={2}>Edit listing</Badge>
-              <Heading size="lg" lineClamp={2}>{listing.title}</Heading>
-            </Box>
-            <Button flexShrink={0} colorPalette="gray" onClick={onClose} variant="ghost" size="sm" px={2}>✕</Button>
-          </Flex>
+      <Box
+        bg="white"
+        border="1px solid"
+        borderColor={BORDER}
+        borderRadius="16px"
+        maxW="500px"
+        w="full"
+        boxShadow="0 24px 48px rgba(0,0,0,0.14)"
+        onClick={(e) => e.stopPropagation()}
+        maxH="calc(100dvh - 32px)"
+        overflow="auto"
+      >
+        {/* Header */}
+        <Flex
+          align="center"
+          justify="space-between"
+          px="24px"
+          py="20px"
+          borderBottom="1px solid"
+          borderColor={BORDER}
+          gap="12px"
+        >
+          <Box flex={1} minW={0}>
+            <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={G} textTransform="uppercase" letterSpacing="0.06em" mb="2px">
+              Edit listing
+            </Text>
+            <Text fontFamily={FONT} fontSize="17px" fontWeight="600" color={TEXT} letterSpacing="-0.3px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+              {listing.title}
+            </Text>
+          </Box>
+          <Box
+            as="button"
+            onClick={onClose}
+            flexShrink={0}
+            w="32px" h="32px"
+            borderRadius="50%"
+            bg="#f3f4f6"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            cursor="pointer"
+            _hover={{ bg: "#e5e7eb" }}
+            border="none"
+            fontFamily={FONT}
+            fontSize="16px"
+            color={MUTED}
+          >
+            ×
+          </Box>
+        </Flex>
 
+        {/* Body */}
+        <Box p="24px">
           {listing.bunqTabUrl && (
-            <Box mb={5}>
+            <Box mb="20px">
               <BunqQrPanel url={listing.bunqTabUrl} price={listing.price} />
             </Box>
           )}
 
-          <Stack gap={3}>
-            <Box>
-              <Text fontSize="xs" fontWeight="bold" mb={1} color="gray.500" textTransform="uppercase" letterSpacing="0.05em">Title</Text>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} borderRadius="12px" />
-            </Box>
-            <SimpleGrid columns={2} gap={3}>
-              <Box>
-                <Text fontSize="xs" fontWeight="bold" mb={1} color="gray.500" textTransform="uppercase" letterSpacing="0.05em">Price (EUR)</Text>
-                <Input value={price} onChange={(e) => setPrice(e.target.value)} borderRadius="12px" />
-              </Box>
-              <Box>
-                <Text fontSize="xs" fontWeight="bold" mb={1} color="gray.500" textTransform="uppercase" letterSpacing="0.05em">Stock</Text>
-                <Input type="number" min={0} value={stock} onChange={(e) => setStock(Math.max(0, Number(e.target.value)))} borderRadius="12px" />
-              </Box>
-            </SimpleGrid>
-            <Box>
-              <Text fontSize="xs" fontWeight="bold" mb={1} color="gray.500" textTransform="uppercase" letterSpacing="0.05em">Description</Text>
-              <Textarea value={description} onChange={(e) => setDesc(e.target.value)} minH="100px" borderRadius="12px" />
-            </Box>
-          </Stack>
+          <Box display="flex" flexDirection="column" gap="16px">
+            <Field label="Title">
+              <Box
+                as="input"
+                {...inputStyle as any}
+                value={title}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
+              />
+            </Field>
 
-          {error && <Text color="red.500" fontSize="sm" mt={2}>{error}</Text>}
+            <Grid templateColumns="1fr 1fr" gap="12px">
+              <Field label="Price (EUR)">
+                <Box
+                  as="input"
+                  {...inputStyle as any}
+                  value={price}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPrice(e.target.value)}
+                />
+              </Field>
+              <Field label="Stock">
+                <Box
+                  as="input"
+                  type="number"
+                  min={0}
+                  {...inputStyle as any}
+                  value={stock}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStock(Math.max(0, Number(e.target.value)))}
+                />
+              </Field>
+            </Grid>
 
-          <HStack mt={5} gap={3}>
-            <Button
+            <Field label="Description">
+              <Textarea
+                {...inputStyle as any}
+                h="auto"
+                minH="90px"
+                py="10px"
+                resize="vertical"
+                value={description}
+                onChange={(e) => setDesc(e.target.value)}
+              />
+            </Field>
+          </Box>
+
+          {error && (
+            <Text fontFamily={FONT} fontSize="13px" color="red.500" mt="12px">{error}</Text>
+          )}
+
+          <Flex mt="20px" gap="10px">
+            <Box
+              as="button"
               flex={1}
-              minW={0}
-              borderRadius="14px"
-              bg={BUNQ_GREEN}
-              color="black"
-              fontWeight="bold"
-              loading={saving}
-              onClick={handleSave}
-              size="lg"
-              _hover={{ bg: "#00c044" }}
+              h="44px"
+              bg={DARK}
+              color="white"
+              borderRadius="8px"
+              fontFamily={FONT}
+              fontSize="14px"
+              fontWeight="600"
+              cursor={saving ? "not-allowed" : "pointer"}
+              opacity={saving ? 0.7 : 1}
+              border="none"
+              _hover={{ opacity: saving ? 0.7 : 0.9 }}
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              onClick={saving ? undefined : handleSave}
             >
-              Save changes
-            </Button>
-            <Button
+              {saving ? "Saving…" : "Save changes"}
+            </Box>
+            <Box
+              as="button"
               flexShrink={0}
-              px={6}
-              borderRadius="14px"
-              variant="outline"
+              h="44px"
+              px="20px"
+              bg="white"
+              color={TEXT}
+              borderRadius="8px"
+              fontFamily={FONT}
+              fontSize="14px"
+              fontWeight="500"
+              cursor="pointer"
+              border="1px solid"
+              borderColor={BORDER}
+              _hover={{ bg: "#f9fafb" }}
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
               onClick={onClose}
-              size="lg"
             >
               Cancel
-            </Button>
-          </HStack>
-        </Card.Body>
-      </Card.Root>
+            </Box>
+          </Flex>
+        </Box>
+      </Box>
     </Flex>
   );
 }
