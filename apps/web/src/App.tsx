@@ -515,7 +515,7 @@ function DashboardPage() {
   }, []);
 
   return (
-    <Box bg={BG} minH="100dvh" pb="120px" position="relative">
+    <Box bg={BG} minH="100dvh" pb="120px" position="relative" className="page-enter">
       {/* Animated gradient background */}
       <Box className="grad-bg">
         <Box className="grad-orb orb-1" />
@@ -1490,21 +1490,11 @@ function LiveWallPage() {
     };
   }, [slug]);
 
-  // Force dark theme — wall is a display surface
-  useEffect(() => {
-    const html = document.documentElement;
-    const prev = html.getAttribute("data-theme");
-    html.setAttribute("data-theme", "dark");
-    return () => {
-      if (prev) html.setAttribute("data-theme", prev);
-      else html.removeAttribute("data-theme");
-    };
-  }, []);
 
   if (loading) {
     return (
       <Flex minH="100dvh" bg="#090909" align="center" justify="center">
-        <Spinner size="xl" color="whiteAlpha.500" />
+        <Spinner size="xl" />
       </Flex>
     );
   }
@@ -1541,74 +1531,62 @@ function LiveWallPage() {
   const soldPct = total > 0 ? Math.min(100, Math.round((drop.sold_count / total) * 100)) : 0;
 
   return (
-    <Box minH="100dvh" bg={PANEL} color="white" position="relative" overflow="hidden">
-      <Box
-        position="absolute"
-        inset={0}
-        bg="radial-gradient(circle at 14% 18%, rgba(0,213,75,0.18), transparent 32%), radial-gradient(circle at 85% 18%, rgba(62,137,255,0.17), transparent 28%), radial-gradient(circle at 50% 92%, rgba(255,157,64,0.20), transparent 34%), linear-gradient(180deg, #04080c 0%, #09131b 42%, #071018 100%)"
-      />
-      <Box
-        position="absolute"
-        insetX="-10%"
-        top="-24%"
-        h="420px"
-        bg="radial-gradient(circle, rgba(255,255,255,0.18), transparent 60%)"
-        transform="rotate(-8deg)"
-        opacity={0.28}
-        filter="blur(48px)"
-      />
+    <Box minH="100dvh" bg={BG} position="relative" overflow="hidden" className="page-enter">
+      <Box className="grad-bg">
+        <Box className="grad-orb orb-1" />
+        <Box className="grad-orb orb-2" />
+        <Box className="grad-orb orb-3" />
+      </Box>
 
-      <Box position="relative" zIndex={1} px={{ base: "18px", md: "28px", xl: "40px" }} py={{ base: "18px", md: "24px" }}>
-        <Flex align="center" justify="space-between" gap="12px" mb={{ base: "18px", md: "24px" }} wrap="wrap">
-          <Flex align="center" gap="10px">
-            <Box
-              w="10px"
-              h="10px"
-              borderRadius="50%"
-              bg={drop.state === "live" ? G : "whiteAlpha.500"}
-              boxShadow={drop.state === "live" ? "0 0 0 8px rgba(0,213,75,0.16)" : "none"}
-            />
-            <Text fontFamily={FONT} fontSize="12px" fontWeight="700" color="whiteAlpha.700" textTransform="uppercase" letterSpacing="0.16em">
-              FlashDrop Live Wall
-            </Text>
-          </Flex>
+      {/* Nav — matches dashboard glass nav */}
+      <Box
+        className="glass-nav"
+        position="sticky"
+        top={0}
+        zIndex={10}
+        px={{ base: "18px", md: "32px" }}
+        h="60px"
+        display="grid"
+        gridTemplateColumns="auto minmax(0,1fr) auto"
+        alignItems="center"
+        gap="12px"
+      >
+        {/* Left: back arrow + logo */}
+        <Flex align="center" gap="12px">
+          <Box
+            as="button"
+            bg="none" border="none" color={TEXT}
+            cursor="pointer" display="inline-flex" alignItems="center"
+            p="4px" flexShrink={0}
+            _hover={{ opacity: 0.6 }}
+            onClick={() => navigate("/dashboard")}
+          >
+            <svg width="28" height="20" viewBox="0 0 36 24" fill="none">
+              <path d="M34 12H2M2 12l10-9M2 12l10 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </Box>
+          <Box h="16px" w="1px" bg={BORDER} flexShrink={0} display={{ base: "none", md: "block" }} />
+          <Box display={{ base: "none", md: "block" }}>
+            <BunqWordmark height={32} />
+          </Box>
+        </Flex>
 
-          <Flex align="center" gap="10px" wrap="wrap">
-            <Box
-              as="button"
-              border="1px solid rgba(255,255,255,0.14)"
-              borderRadius="999px"
-              px="14px"
-              h="38px"
-              display="flex"
-              alignItems="center"
-              fontFamily={FONT}
-              fontSize="13px"
-              fontWeight="600"
-              bg="rgba(255,255,255,0.06)"
-              color="white"
-              cursor="pointer"
-              onClick={() => window.open(checkoutUrl, "_blank", "noopener,noreferrer")}
-            >
-              Open buyer checkout
-            </Box>
-            <Box
-              as="button"
-              border="1px solid rgba(255,255,255,0.12)"
-              borderRadius="999px"
-              px="14px"
-              h="38px"
-              bg="rgba(255,255,255,0.04)"
-              color="white"
-              fontFamily={FONT}
-              fontSize="13px"
-              fontWeight="600"
-              cursor="pointer"
-              onClick={() => navigate("/dashboard")}
-            >
-              Exit wall
-            </Box>
-          </Flex>
+        {/* Center: title */}
+        <Text fontFamily={FONT} fontSize={{ base: "13px", md: "14px" }} fontWeight="600" color={TEXT} textAlign="center" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis" display={{ base: "none", sm: "block" }}>
+          {drop.title}
+        </Text>
+
+        {/* Right: live status */}
+        <Flex align="center" gap="7px" justify="flex-end">
+          <Box
+            w="7px" h="7px" borderRadius="50%"
+            position="relative" flexShrink={0}
+            className={[dotClass, isLive ? "live-pulse" : undefined].filter(Boolean).join(" ") || undefined}
+            style={isLive ? { backgroundColor: "#ef4444", "--dot-clr": "#ef4444" } as React.CSSProperties : { backgroundColor: MUTED }}
+          />
+          <Text fontFamily={FONT} fontSize="12px" fontWeight="600" color={isLive ? TEXT : MUTED} whiteSpace="nowrap">
+            {dropStateLabel(drop.state)}
+          </Text>
         </Flex>
       </Box>
 
@@ -1680,15 +1658,14 @@ function LiveWallPage() {
                 ].map((item) => (
                   <Box
                     key={item.label}
-                    borderRadius="18px"
-                    p={{ base: "16px", md: "18px" }}
-                    bg="rgba(255,255,255,0.06)"
-                    border="1px solid rgba(255,255,255,0.09)"
+                    className="glass-card"
+                    borderRadius="14px"
+                    p={{ base: "14px", md: "16px" }}
                   >
-                    <Text fontFamily={FONT} fontSize="11px" fontWeight="700" color="whiteAlpha.600" textTransform="uppercase" letterSpacing="0.08em">
+                    <Text fontFamily={FONT} fontSize="10px" fontWeight="700" color={MUTED} textTransform="uppercase" letterSpacing="0.08em">
                       {item.label}
                     </Text>
-                    <Text fontFamily={FONT} fontSize={{ base: "24px", md: "28px" }} fontWeight="700" letterSpacing="-0.8px" mt="10px">
+                    <Text fontFamily={FONT} fontSize={{ base: "24px", md: "28px" }} fontWeight="700" letterSpacing="-0.8px" color={TEXT} mt="6px">
                       {item.value}
                     </Text>
                   </Box>
