@@ -108,7 +108,7 @@ export function HagglePanel({
         gap="10px"
         transition="all 200ms ease"
         position="relative"
-        _hover={{ bg: TEXT, color: "white", borderStyle: "solid", transform: "translateY(-1px)" }}
+        _hover={{ bg: DARK, color: INK_FG, borderStyle: "solid", borderColor: DARK, transform: "translateY(-1px)" }}
         _active={{ transform: "scale(0.98)" }}
       >
         <Box as="span" fontSize="18px" lineHeight="1">💬</Box>
