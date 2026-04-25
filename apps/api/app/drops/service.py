@@ -297,6 +297,34 @@ def archive_drop(db: Session, drop_id: str) -> Drop:
     return drop
 
 
+def unarchive_drop(db: Session, drop_id: str) -> Drop:
+    drop = get_by_id(db, drop_id)
+    _transition(
+        drop,
+        allowed={DropState.archived},
+        to_state=DropState.draft,
+        action="unarchive",
+    )
+    record_event(
+        db,
+        event_type="drop.unarchived",
+        source=EventSource.domain,
+        drop=drop,
+        payload={"state": drop.state.value},
+    )
+    db.commit()
+    db.refresh(drop)
+    return drop
+
+
+def delete_drop(db: Session, drop_id: str) -> None:
+    drop = get_by_id(db, drop_id)
+    if drop.state not in (DropState.draft, DropState.archived):
+        raise DropConflict(f"cannot delete drop in state {drop.state.value}; only draft or archived drops can be deleted")
+    db.delete(drop)
+    db.commit()
+
+
 def apply_payment_event(
     db: Session,
     reference: str,

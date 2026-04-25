@@ -192,3 +192,30 @@ def archive_drop(
         return service.archive_drop(db, drop_id)
     except service.DropError as exc:
         raise _translate(exc) from exc
+
+
+@router.post("/{drop_id}/unarchive", response_model=DropDetail)
+def unarchive_drop(
+    drop_id: str,
+    db: Session = Depends(get_db),
+    current_seller: Seller = Depends(get_current_seller),
+) -> Drop:
+    try:
+        service.ensure_owner(service.get_by_id(db, drop_id), current_seller.id)
+        return service.unarchive_drop(db, drop_id)
+    except service.DropError as exc:
+        raise _translate(exc) from exc
+
+
+@router.delete("/{drop_id}", status_code=200)
+def delete_drop(
+    drop_id: str,
+    db: Session = Depends(get_db),
+    current_seller: Seller = Depends(get_current_seller),
+) -> dict:
+    try:
+        service.ensure_owner(service.get_by_id(db, drop_id), current_seller.id)
+        service.delete_drop(db, drop_id)
+        return {}
+    except service.DropError as exc:
+        raise _translate(exc) from exc

@@ -409,7 +409,7 @@ function DashboardPage() {
   const [editTarget, setEditTarget]   = useState<Listing | null>(null);
   const [previewTarget, setPreviewTarget] = useState<Listing | null>(null);
   const [celebration, setCelebration] = useState<CelebrationData | null>(null);
-  const [activeStatuses, setActiveStatuses] = useState<DropStatusFilter[]>([]);
+  const [activeStatuses, setActiveStatuses] = useState<DropStatusFilter[]>(["live"]);
   const [notifications, setNotifications] = useState<SaleNotification[]>([]);
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement | null>(null);
@@ -923,6 +923,8 @@ function DashboardPage() {
           onClose={() => setEditTarget(null)}
           onSave={(u) => { updateListing(editTarget.id, u); setEditTarget(null); }}
           onArchive={() => { setListings((cur) => cur.filter((l) => l.id !== editTarget.id)); setEditTarget(null); }}
+          onUnarchive={(u) => { updateListing(editTarget.id, u); setEditTarget(null); }}
+          onDelete={() => { setListings((cur) => cur.filter((l) => l.id !== editTarget.id)); setEditTarget(null); }}
         />
       )}
       {previewTarget && (

@@ -259,6 +259,12 @@ export const api = {
   archive: (id: string): Promise<DropDetail> =>
     request<DropDetail>(`/drops/${encodeURIComponent(id)}/archive`, { method: "POST" }),
 
+  unarchive: (id: string): Promise<DropDetail> =>
+    request<DropDetail>(`/drops/${encodeURIComponent(id)}/unarchive`, { method: "POST" }),
+
+  deleteDrop: (id: string): Promise<void> =>
+    request<void>(`/drops/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
   getDropEvents: (slug: string): Promise<Record<string, unknown>[]> =>
     request<Record<string, unknown>[]>(`/drops/${encodeURIComponent(slug)}/events`),
 

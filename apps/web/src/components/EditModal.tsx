@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Box, Flex, Grid, Text, Textarea } from "@chakra-ui/react";
-import { api, buyerCheckoutUrl, centsFromEuros, liveWallUrl, type DropState } from "../api";
+import { api, buyerCheckoutUrl, centsFromEuros, liveWallUrl, type DropState, eurosFromCents } from "../api";
 import { DARK, INK_FG, CARD, SURFACE, BORDER, TEXT, MUTED, FONT } from "../theme/tokens";
 import { BunqQrPanel } from "./BunqQrPanel";
 import type { Listing } from "./ListingCard";
@@ -47,11 +47,15 @@ export function EditModal({
   onClose,
   onSave,
   onArchive,
+  onUnarchive,
+  onDelete,
 }: {
   listing: Listing;
   onClose: () => void;
   onSave: (u: Partial<Listing>) => void;
   onArchive: () => void;
+  onUnarchive: (u: Partial<Listing>) => void;
+  onDelete: () => void;
 }) {
   const [title, setTitle] = useState(listing.title);
   const [description, setDesc] = useState(listing.description);
@@ -104,6 +108,34 @@ export function EditModal({
       onArchive();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Archive failed");
+      setActing(false);
+    }
+  };
+
+  const handleUnarchive = async () => {
+    setActing(true); setError("");
+    try {
+      const fresh = await api.unarchive(listing.id);
+      onUnarchive({
+        state: fresh.state,
+        status: fresh.state === "live" ? "live" : "draft",
+        price: eurosFromCents(fresh.price_cents),
+        stock: fresh.inventory,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unarchive failed");
+      setActing(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Delete "${listing.title}"? This cannot be undone.`)) return;
+    setActing(true); setError("");
+    try {
+      await api.deleteDrop(listing.id);
+      onDelete();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
       setActing(false);
     }
   };
@@ -296,9 +328,33 @@ export function EditModal({
             {saving ? "Saving…" : "Save changes"}
           </Box>
 
-          {(primaryAction || state !== "archived") && (
-            <Box mt="12px" display="flex" flexDirection="column" gap="8px">
-              {primaryAction && (
+          <Box mt="12px" display="flex" flexDirection="column" gap="8px">
+            {primaryAction && (
+              <Box
+                as="button"
+                w="full"
+                h="40px"
+                bg={SURFACE}
+                color={TEXT}
+                borderRadius="8px"
+                fontFamily={FONT}
+                fontSize="13px"
+                fontWeight="600"
+                cursor={busy ? "not-allowed" : "pointer"}
+                opacity={busy ? 0.6 : 1}
+                border="1px solid"
+                borderColor={BORDER}
+                _hover={{ bg: BORDER }}
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                onClick={busy ? undefined : primaryAction.fn}
+              >
+                {acting ? "Working…" : primaryAction.label}
+              </Box>
+            )}
+            {state === "archived" ? (
+              <>
                 <Box
                   as="button"
                   w="full"
@@ -317,12 +373,10 @@ export function EditModal({
                   display="flex"
                   alignItems="center"
                   justifyContent="center"
-                  onClick={busy ? undefined : primaryAction.fn}
+                  onClick={busy ? undefined : handleUnarchive}
                 >
-                  {acting ? "Working…" : primaryAction.label}
+                  {acting ? "Working…" : "Move to draft"}
                 </Box>
-              )}
-              {state !== "archived" && (
                 <Box
                   as="button"
                   w="full"
@@ -340,13 +394,35 @@ export function EditModal({
                   display="flex"
                   alignItems="center"
                   justifyContent="center"
-                  onClick={busy ? undefined : handleArchive}
+                  onClick={busy ? undefined : handleDelete}
                 >
-                  {acting ? "Working…" : "Archive listing"}
+                  {acting ? "Working…" : "Delete listing"}
                 </Box>
-              )}
-            </Box>
-          )}
+              </>
+            ) : (
+              <Box
+                as="button"
+                w="full"
+                h="36px"
+                bg="transparent"
+                color={MUTED}
+                borderRadius="8px"
+                fontFamily={FONT}
+                fontSize="12px"
+                fontWeight="500"
+                cursor={busy ? "not-allowed" : "pointer"}
+                opacity={busy ? 0.5 : 1}
+                border="none"
+                _hover={{ color: "red.500" }}
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                onClick={busy ? undefined : handleArchive}
+              >
+                {acting ? "Working…" : "Archive listing"}
+              </Box>
+            )}
+          </Box>
         </Box>
       </Box>
     </Flex>
