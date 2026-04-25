@@ -58,6 +58,7 @@ class Drop(Base):
     sold_count: Mapped[int] = mapped_column(Integer, default=0)
 
     media_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    media_urls: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
     bunq_tab_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     bunq_tab_uuid: Mapped[str | None] = mapped_column(String(64), nullable=True)
     bunq_tab_reference: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)

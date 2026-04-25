@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useRef, type ChangeEvent } from "react";
 import { Box, Flex, Grid, Text, Textarea } from "@chakra-ui/react";
 import { api, buyerCheckoutUrl, centsFromEuros, liveWallUrl, type DropState, eurosFromCents } from "../api";
 import { DARK, INK_FG, CARD, SURFACE, BORDER, TEXT, MUTED, FONT } from "../theme/tokens";
 import { BunqQrPanel } from "./BunqQrPanel";
+import { ProductTileImage } from "./ProductTileImage";
 import type { Listing } from "./ListingCard";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -62,15 +63,51 @@ export function EditModal({
   const [price, setPrice] = useState(listing.price);
   const [floorPrice, setFloorPrice] = useState(listing.floorPrice ?? "");
   const [stock, setStock] = useState(listing.stock);
+  const [images, setImages] = useState<string[]>(listing.imageUrls?.length ? listing.imageUrls : listing.imageUrl ? [listing.imageUrl] : []);
+  const [primaryIdx, setPrimaryIdx] = useState(0);
   const [saving, setSaving] = useState(false);
   const [acting, setActing] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const newBlobsRef = useRef<Map<number, File>>(new Map());
 
   const state = listing.state;
+
+  const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []); if (!files.length) return;
+    setUploading(true);
+    const startIdx = images.length;
+    const localUrls = files.map((f) => URL.createObjectURL(f));
+    files.forEach((f, i) => newBlobsRef.current.set(startIdx + i, f));
+    setImages((prev) => [...prev, ...localUrls]);
+    e.target.value = "";
+    setUploading(false);
+  };
+
+  const removeImage = (idx: number) => {
+    setImages((prev) => {
+      const next = prev.filter((_, i) => i !== idx);
+      setPrimaryIdx((p) => Math.min(p, Math.max(0, next.length - 1)));
+      return next;
+    });
+    newBlobsRef.current.delete(idx);
+  };
 
   const handleSave = async () => {
     setSaving(true); setError("");
     try {
+      // Upload any new blobs
+      const resolvedUrls = await Promise.all(
+        images.map(async (src, i) => {
+          const blob = newBlobsRef.current.get(i);
+          if (blob) {
+            const r = await api.uploadMedia(blob, blob.name);
+            return r.url;
+          }
+          return src;
+        })
+      );
+      const primaryUrl = resolvedUrls[primaryIdx] ?? resolvedUrls[0] ?? listing.imageUrl;
       const floorCents = floorPrice.trim() ? centsFromEuros(floorPrice) : null;
       await api.updateDrop(listing.id, {
         title: title.trim() || listing.title,
@@ -78,8 +115,10 @@ export function EditModal({
         price_cents: centsFromEuros(price),
         floor_price_cents: floorCents,
         inventory: Math.max(0, stock),
+        media_url: primaryUrl,
+        media_urls: resolvedUrls,
       });
-      onSave({ title, description, price, floorPrice: floorPrice.trim() || undefined, stock });
+      onSave({ title, description, price, floorPrice: floorPrice.trim() || undefined, stock, imageUrl: primaryUrl ?? "", imageUrls: resolvedUrls });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
@@ -140,7 +179,7 @@ export function EditModal({
     }
   };
 
-  const busy = saving || acting;
+  const busy = saving || acting || uploading;
 
   type Action = { label: string; fn: () => void } | null;
   const primaryAction: Action =
@@ -247,6 +286,70 @@ export function EditModal({
           <Text fontFamily={FONT} fontSize="12px" color={MUTED} mb="16px" lineHeight="1.5">
             Buyers scan this QR to open the mocked sandbox checkout on their phone. Completing that flow marks the payment paid and updates the seller view live.
           </Text>
+
+          {/* Images */}
+          <Box mb="20px">
+            <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.06em" mb="10px">
+              Photos {images.length > 0 && `· ${images.length}`}
+            </Text>
+            {images.length > 0 && (
+              <Box mb="10px" borderRadius="10px" overflow="hidden">
+                <ProductTileImage imageUrls={images} title={title} h="200px" />
+              </Box>
+            )}
+            <Flex gap="6px" flexWrap="wrap" mb="10px">
+              {images.map((src, i) => (
+                <Box key={i} position="relative" flexShrink={0}>
+                  <img
+                    src={src}
+                    alt={`photo ${i + 1}`}
+                    onClick={() => setPrimaryIdx(i)}
+                    style={{
+                      display: "block", width: 52, height: 52,
+                      borderRadius: 6, objectFit: "cover", cursor: "pointer",
+                      border: `2px solid ${i === primaryIdx ? "var(--c-text)" : "var(--c-border)"}`,
+                    }}
+                  />
+                  <Box
+                    position="absolute" top="-5px" right="-5px"
+                    w="16px" h="16px" borderRadius="50%"
+                    bg={CARD} border="1px solid" borderColor={BORDER}
+                    display="flex" alignItems="center" justifyContent="center"
+                    cursor="pointer" fontSize="9px" color={MUTED}
+                    as="button"
+                    _hover={{ bg: "#dc2626", color: "white", borderColor: "#dc2626" }}
+                    onClick={() => removeImage(i)}
+                  >
+                    ×
+                  </Box>
+                  {i === primaryIdx && (
+                    <Box position="absolute" bottom="-5px" left="50%" transform="translateX(-50%)"
+                      bg={DARK} borderRadius="4px" px="4px"
+                      pointerEvents="none"
+                    >
+                      <Text fontFamily={FONT} fontSize="8px" fontWeight="700" color={CARD} whiteSpace="nowrap">COVER</Text>
+                    </Box>
+                  )}
+                </Box>
+              ))}
+              <Box
+                as="label"
+                w="52px" h="52px" flexShrink={0}
+                borderRadius="6px" border="1px dashed" borderColor={BORDER}
+                display="flex" alignItems="center" justifyContent="center"
+                cursor="pointer" color={MUTED}
+                _hover={{ borderColor: TEXT, color: TEXT }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+                <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleImageUpload} disabled={uploading} />
+              </Box>
+            </Flex>
+            {images.length > 1 && (
+              <Text fontFamily={FONT} fontSize="11px" color={MUTED}>Click a thumbnail to set it as the cover photo.</Text>
+            )}
+          </Box>
 
           <Box display="flex" flexDirection="column" gap="16px">
             <Field label="Title">

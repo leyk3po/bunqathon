@@ -79,7 +79,7 @@ function dropToListing(drop: DropPublic): Listing {
     description: drop.description ?? "", price: eurosFromCents(drop.price_cents),
     floorPrice: drop.floor_price_cents != null ? eurosFromCents(drop.floor_price_cents) : undefined,
     stock: drop.inventory, category: "FlashDrop",
-    imageUrl: drop.media_url ?? "", prompt: "", status, state: drop.state,
+    imageUrl: drop.media_url ?? "", imageUrls: drop.media_urls ?? [], prompt: "", status, state: drop.state,
     createdAt: new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(drop.created_at)),
     bunqTabUrl: drop.bunq_tab_url,
     expiresAt: drop.expires_at ?? undefined,
@@ -121,13 +121,13 @@ function makeLocalDraft(d: DraftListing): DraftListing {
 }
 
 type DraftListing = {
-  imageUrl: string; prompt: string; title: string;
+  images: string[]; primaryIdx: number; prompt: string; title: string;
   description: string; price: string; floorPrice: string; stock: number;
   category: string; audioUrl?: string; expiresDate?: string; expiresTime?: string;
 };
 
 const emptyDraft: DraftListing = {
-  imageUrl: "", prompt: "", title: "", description: "", price: "", floorPrice: "", stock: 1, category: "Quick drop",
+  images: [], primaryIdx: 0, prompt: "", title: "", description: "", price: "", floorPrice: "", stock: 1, category: "Quick drop",
 };
 
 // ─── Theme toggle ─────────────────────────────────────────────────────────────
@@ -1069,8 +1069,8 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recognitionRef = useRef<{ stop: () => void } | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
-  const capturedBlobRef = useRef<Blob | null>(null);
-  const remoteMediaRef = useRef<string | null>(null);
+  const capturedBlobsRef = useRef<Map<number, Blob>>(new Map());
+  const remoteUrlsRef   = useRef<Map<number, string>>(new Map());
 
   const [draft, setDraft] = useState<DraftListing>(emptyDraft);
   const [cameraError, setCameraErr] = useState("");
@@ -1081,7 +1081,8 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
   const [isRecording, setRecording] = useState(false);
   const [voiceError, setVoiceError] = useState("");
 
-  const hasPhoto = Boolean(draft.imageUrl);
+  const hasPhoto = draft.images.length > 0;
+  const primaryImage = draft.images[draft.primaryIdx] ?? "";
   const canGenerate = hasPhoto || draft.prompt.trim().length > 0;
   const expiryInvalid = Boolean(
     draft.expiresDate && draft.expiresTime &&
@@ -1117,31 +1118,55 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
     canvas.width = v.videoWidth || 1280; canvas.height = v.videoHeight || 720;
     canvas.getContext("2d")!.drawImage(v, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
-    setDraft((d) => ({ ...d, imageUrl: dataUrl }));
-    canvas.toBlob((blob) => { capturedBlobRef.current = blob; remoteMediaRef.current = null; }, "image/jpeg", 0.92);
+    setDraft((d) => {
+      const images = [...d.images, dataUrl];
+      return { ...d, images, primaryIdx: images.length - 1 };
+    });
+    canvas.toBlob((blob) => {
+      if (blob) capturedBlobsRef.current.set(draft.images.length, blob);
+    }, "image/jpeg", 0.92);
   };
 
-  const retakePhoto = () => {
-    setDraft((d) => ({ ...d, imageUrl: "" }));
-    capturedBlobRef.current = null; remoteMediaRef.current = null;
-    if (videoRef.current && streamRef.current) videoRef.current.srcObject = streamRef.current;
+  const removeImage = (idx: number) => {
+    URL.revokeObjectURL(draft.images[idx]);
+    capturedBlobsRef.current.delete(idx);
+    remoteUrlsRef.current.delete(idx);
+    setDraft((d) => {
+      const images = d.images.filter((_, i) => i !== idx);
+      const primaryIdx = Math.min(d.primaryIdx, Math.max(0, images.length - 1));
+      return { ...d, images, primaryIdx };
+    });
   };
 
   const handleUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file) return;
-    capturedBlobRef.current = file; remoteMediaRef.current = null;
-    setDraft((d) => ({ ...d, imageUrl: URL.createObjectURL(file) }));
+    const files = Array.from(e.target.files ?? []); if (!files.length) return;
     setUploading(true);
-    try { const r = await api.uploadMedia(file, file.name); remoteMediaRef.current = r.url; }
-    catch { /* retry later */ } finally { setUploading(false); }
+    const startIdx = draft.images.length;
+    const localUrls = files.map((f) => URL.createObjectURL(f));
+    files.forEach((f, i) => capturedBlobsRef.current.set(startIdx + i, f));
+    setDraft((d) => {
+      const images = [...d.images, ...localUrls];
+      return { ...d, images, primaryIdx: d.images.length === 0 ? 0 : d.primaryIdx };
+    });
+    try {
+      await Promise.all(files.map(async (f, i) => {
+        const r = await api.uploadMedia(f, f.name);
+        remoteUrlsRef.current.set(startIdx + i, r.url);
+      }));
+    } catch { /* retry on publish */ } finally { setUploading(false); }
+    e.target.value = "";
   };
 
   const ensureUploaded = async () => {
-    if (remoteMediaRef.current) return remoteMediaRef.current;
-    if (!capturedBlobRef.current) return null;
-    const ext = capturedBlobRef.current.type.split("/")[1] ?? "jpg";
-    const r = await api.uploadMedia(capturedBlobRef.current, `capture-${Date.now()}.${ext}`);
-    remoteMediaRef.current = r.url; return r.url;
+    const idx = draft.primaryIdx;
+    if (remoteUrlsRef.current.has(idx)) return remoteUrlsRef.current.get(idx)!;
+    let blob = capturedBlobsRef.current.get(idx);
+    if (!blob && primaryImage.startsWith("data:")) blob = await dataUrlToBlob(primaryImage);
+    if (!blob) return null;
+    const ext = blob.type.split("/")[1] ?? "jpg";
+    const r = await api.uploadMedia(blob, `capture-${Date.now()}.${ext}`);
+    remoteUrlsRef.current.set(idx, r.url);
+    return r.url;
   };
 
   const startVoice = async () => {
@@ -1186,7 +1211,6 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
   const generateListing = async () => {
     setGen(true); setApiError("");
     try {
-      if (!capturedBlobRef.current && draft.imageUrl.startsWith("data:")) capturedBlobRef.current = await dataUrlToBlob(draft.imageUrl);
       const mediaUrl = await ensureUploaded();
       const pitch = draft.prompt.trim() || "Limited drop, available now.";
       const preview = await api.generatePreview(pitch, mediaUrl);
@@ -1224,15 +1248,28 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
   const postListing = async () => {
     setPosting(true); setApiError("");
     try {
-      if (!capturedBlobRef.current && draft.imageUrl.startsWith("data:")) capturedBlobRef.current = await dataUrlToBlob(draft.imageUrl);
-      const mediaUrl = await ensureUploaded();
+      // Upload all images in parallel, primary first
+      const allUrls = await Promise.all(
+        draft.images.map(async (src, i) => {
+          if (remoteUrlsRef.current.has(i)) return remoteUrlsRef.current.get(i)!;
+          let blob = capturedBlobsRef.current.get(i);
+          if (!blob && src.startsWith("data:")) blob = await dataUrlToBlob(src);
+          if (!blob) return null;
+          const ext = blob.type.split("/")[1] ?? "jpg";
+          const r = await api.uploadMedia(blob, `capture-${Date.now()}-${i}.${ext}`);
+          remoteUrlsRef.current.set(i, r.url);
+          return r.url;
+        })
+      );
+      const mediaUrls = allUrls.filter(Boolean) as string[];
+      const primaryUrl = mediaUrls[draft.primaryIdx] ?? mediaUrls[0] ?? null;
       const expiresIso = (draft.expiresDate && draft.expiresTime)
         ? new Date(`${draft.expiresDate}T${draft.expiresTime}`).toISOString()
         : null;
       const floorCents = draft.floorPrice.trim() ? centsFromEuros(draft.floorPrice) : null;
-      const created = await api.createDrop({ title: draft.title.trim() || titleFromPrompt(draft.prompt), description: draft.description.trim(), pitch: draft.prompt.trim() || null, price_cents: centsFromEuros(draft.price), floor_price_cents: floorCents, inventory: Math.max(1, draft.stock), media_url: mediaUrl, expires_at: expiresIso });
+      const created = await api.createDrop({ title: draft.title.trim() || titleFromPrompt(draft.prompt), description: draft.description.trim(), pitch: draft.prompt.trim() || null, price_cents: centsFromEuros(draft.price), floor_price_cents: floorCents, inventory: Math.max(1, draft.stock), media_url: primaryUrl, media_urls: mediaUrls, expires_at: expiresIso });
       const live = await api.publish(created.id);
-      onPost({ id: live.id, slug: live.slug, title: live.title, description: live.description, price: eurosFromCents(live.price_cents), stock: live.inventory, category: draft.category, imageUrl: draft.imageUrl, prompt: draft.prompt, status: "live", state: live.state, createdAt: nowTime(), audioUrl: draft.audioUrl, bunqTabUrl: live.bunq_tab_url, expiresAt: live.expires_at ?? undefined });
+      onPost({ id: live.id, slug: live.slug, title: live.title, description: live.description, price: eurosFromCents(live.price_cents), stock: live.inventory, category: draft.category, imageUrl: primaryImage, imageUrls: live.media_urls ?? [], prompt: draft.prompt, status: "live", state: live.state, createdAt: nowTime(), audioUrl: draft.audioUrl, bunqTabUrl: live.bunq_tab_url, expiresAt: live.expires_at ?? undefined });
       onClose();
     } catch (err) {
       setApiError(err instanceof Error ? err.message : "Publish failed");
@@ -1315,39 +1352,60 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
               position="relative"
               mb="12px"
             >
-              {hasPhoto ? (
-                <Image alt="Captured" h={{ base: "280px", md: "380px" }} objectFit="cover" src={draft.imageUrl} w="full" display="block" />
-              ) : (
-                <video autoPlay muted playsInline ref={videoRef}
-                  style={{ background: "#111", display: "block", height: "min(380px, 50vh)", objectFit: "cover", width: "100%" }}
-                />
+              {hasPhoto && (
+                <Image alt="Captured" h={{ base: "280px", md: "380px" }} objectFit="cover" src={primaryImage} w="full" display="block" />
               )}
+              <video autoPlay muted playsInline ref={videoRef}
+                style={{ background: "#111", display: hasPhoto ? "none" : "block", height: "min(380px, 50vh)", objectFit: "cover", width: "100%" }}
+              />
               <Box position="absolute" bottom="10px" left="10px">
-                <Box
-                  bg="rgba(0,0,0,0.55)" borderRadius="20px" px="10px" py="4px"
-                  style={{ backdropFilter: "blur(8px)" }}
-                >
+                <Box bg="rgba(0,0,0,0.55)" borderRadius="20px" px="10px" py="4px" style={{ backdropFilter: "blur(8px)" }}>
                   <Text fontFamily={FONT} fontSize="11px" fontWeight="500" color="white">
-                    {cameraError ? cameraError : hasPhoto ? (isUploading ? "Uploading…" : "Ready") : "Camera live"}
+                    {cameraError ? cameraError : hasPhoto ? (isUploading ? "Uploading…" : `${draft.images.length} photo${draft.images.length > 1 ? "s" : ""}`) : "Camera live"}
                   </Text>
                 </Box>
               </Box>
             </Box>
 
+            {/* Thumbnail strip */}
+            {hasPhoto && (
+              <Flex gap="6px" mb="10px" overflowX="auto" pb="2px">
+                {draft.images.map((src, i) => (
+                  <Box key={i} position="relative" flexShrink={0}>
+                    <img
+                      src={src}
+                      alt={`photo ${i + 1}`}
+                      onClick={() => setDraft((d) => ({ ...d, primaryIdx: i }))}
+                      style={{
+                        display: "block", width: 52, height: 52,
+                        borderRadius: 6, objectFit: "cover", cursor: "pointer",
+                        border: `2px solid ${i === draft.primaryIdx ? "var(--c-text)" : "var(--c-border)"}`,
+                      }}
+                    />
+                    <Box
+                      position="absolute" top="-5px" right="-5px"
+                      w="16px" h="16px" borderRadius="50%"
+                      bg={CARD} border="1px solid" borderColor={BORDER}
+                      display="flex" alignItems="center" justifyContent="center"
+                      cursor="pointer" fontSize="9px" color={MUTED}
+                      _hover={{ bg: "#dc2626", color: "white", borderColor: "#dc2626" }}
+                      onClick={() => removeImage(i)}
+                    >
+                      ×
+                    </Box>
+                  </Box>
+                ))}
+              </Flex>
+            )}
+
             {/* Camera controls */}
             <Flex gap="8px" flexWrap="wrap" mb="16px">
-              {!hasPhoto ? (
-                <Box as="button" {...btnPrimary} h="38px" px="16px" fontSize="13px" gap="6px" onClick={capturePhoto}>
-                  Capture
-                </Box>
-              ) : (
-                <Box as="button" {...btnOutline} h="38px" px="16px" fontSize="13px" onClick={retakePhoto}>
-                  Retake
-                </Box>
-              )}
+              <Box as="button" {...btnPrimary} h="38px" px="16px" fontSize="13px" gap="6px" onClick={capturePhoto}>
+                {hasPhoto ? "+ Capture" : "Capture"}
+              </Box>
               <Box as="label" {...btnOutline} h="38px" px="16px" fontSize="13px" cursor="pointer">
-                Upload photo
-                <input type="file" accept="image/*,video/*" style={{ display: "none" }} onChange={handleUpload} />
+                {hasPhoto ? "+ Upload" : "Upload photos"}
+                <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleUpload} />
               </Box>
               <Box
                 as="button"

@@ -31,6 +31,7 @@ class DropCreate(BaseModel):
     currency: str = Field(default="EUR", min_length=3, max_length=3)
     inventory: int = Field(ge=1, default=1)
     media_url: str | None = None
+    media_urls: list[str] = Field(default_factory=list)
     seller_id: str | None = None
     slug: str | None = None
     duration_minutes: int | None = Field(default=None, ge=1)
@@ -64,6 +65,7 @@ class DropUpdate(BaseModel):
     currency: str | None = Field(default=None, min_length=3, max_length=3)
     inventory: int | None = Field(default=None, ge=0)
     media_url: str | None = None
+    media_urls: list[str] | None = None
     expires_at: datetime | None = None
 
     @field_validator("expires_at", mode="before")
@@ -97,6 +99,7 @@ class DropPublic(BaseModel):
     inventory: int
     sold_count: int
     media_url: str | None
+    media_urls: list[str] = Field(default_factory=list)
     bunq_tab_url: str | None
     state: DropState
     duration_minutes: int | None

@@ -81,7 +81,7 @@ export function ListingPreviewModal({
         </Flex>
 
         <Box px="20px" pb="20px">
-          <ProductTileImage imageUrl={listing.imageUrl} title={listing.title} />
+          <ProductTileImage imageUrl={listing.imageUrl} imageUrls={listing.imageUrls} title={listing.title} h="280px" />
 
           <Flex align="baseline" justify="space-between" gap="12px" mt="18px">
             <Text fontFamily={FONT} fontSize="26px" fontWeight="700" color={TEXT}>

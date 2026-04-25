@@ -72,6 +72,8 @@ def create_drop(db: Session, payload: DropCreate) -> Drop:
     if payload.expires_at is not None and payload.expires_at <= _utcnow():
         raise DropInvalid("expires_at must be in the future")
     slug = unique_slug(db, payload.title, payload.slug)
+    media_urls = payload.media_urls or ([payload.media_url] if payload.media_url else [])
+    media_url = media_urls[0] if media_urls else payload.media_url
     drop = Drop(
         slug=slug,
         seller_id=payload.seller_id,
@@ -82,7 +84,8 @@ def create_drop(db: Session, payload: DropCreate) -> Drop:
         floor_price_cents=payload.floor_price_cents,
         currency=payload.currency.upper(),
         inventory=payload.inventory,
-        media_url=payload.media_url,
+        media_url=media_url,
+        media_urls=media_urls,
         state=DropState.draft,
         duration_minutes=payload.duration_minutes,
         expires_at=payload.expires_at,
@@ -172,6 +175,8 @@ def update_drop(db: Session, drop_id: str, payload: DropUpdate) -> Drop:
         raise DropInvalid("expires_at must be in the future")
     for key, value in data.items():
         setattr(drop, key, value)
+    if "media_urls" in data and data["media_urls"]:
+        drop.media_url = data["media_urls"][0]
 
     _sync_active_state(drop)
     record_event(

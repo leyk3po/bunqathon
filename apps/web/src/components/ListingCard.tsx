@@ -19,6 +19,7 @@ export type Listing = {
   stock: number;
   category: string;
   imageUrl: string;
+  imageUrls: string[];
   prompt: string;
   status: ListingStatus;
   state?: DropState;
@@ -353,7 +354,7 @@ export function ListingCard({
     >
       {/* Image */}
       <Box position="relative">
-        <ProductTileImage imageUrl={listing.imageUrl} title={listing.title} />
+        <ProductTileImage imageUrl={listing.imageUrl} imageUrls={listing.imageUrls} title={listing.title} />
         <Box position="absolute" top="10px" right="10px">
           <StatusBadge />
         </Box>

@@ -41,6 +41,7 @@ export type DropPublic = {
   inventory: number;
   sold_count: number;
   media_url: string | null;
+  media_urls: string[];
   bunq_tab_url: string | null;
   state: DropState;
   duration_minutes: number | null;
@@ -211,6 +212,7 @@ export const api = {
     currency?: string;
     inventory: number;
     media_url?: string | null;
+    media_urls?: string[];
     expires_at?: string | null;
   }): Promise<DropDetail> =>
     request<DropDetail>("/drops", { method: "POST", body: JSON.stringify(payload) }),
@@ -232,7 +234,7 @@ export const api = {
 
   getDrop: (slug: string): Promise<DropDetail> => request<DropDetail>(`/drops/${encodeURIComponent(slug)}`),
 
-  updateDrop: (id: string, payload: Partial<{ title: string; description: string; pitch: string | null; price_cents: number; floor_price_cents: number | null; currency: string; inventory: number; media_url: string | null; expires_at: string | null }>): Promise<DropDetail> =>
+  updateDrop: (id: string, payload: Partial<{ title: string; description: string; pitch: string | null; price_cents: number; floor_price_cents: number | null; currency: string; inventory: number; media_url: string | null; media_urls: string[]; expires_at: string | null }>): Promise<DropDetail> =>
     request<DropDetail>(`/drops/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(payload) }),
 
   publish: (id: string): Promise<DropDetail> =>
