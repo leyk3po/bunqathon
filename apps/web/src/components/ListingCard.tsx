@@ -15,6 +15,7 @@ export type Listing = {
   title: string;
   description: string;
   price: string;
+  floorPrice?: string;
   stock: number;
   category: string;
   imageUrl: string;

@@ -77,6 +77,7 @@ function dropToListing(drop: DropPublic): Listing {
   return {
     id: drop.id, slug: drop.slug, title: drop.title,
     description: drop.description ?? "", price: eurosFromCents(drop.price_cents),
+    floorPrice: drop.floor_price_cents != null ? eurosFromCents(drop.floor_price_cents) : undefined,
     stock: drop.inventory, category: "FlashDrop",
     imageUrl: drop.media_url ?? "", prompt: "", status, state: drop.state,
     createdAt: new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(drop.created_at)),
@@ -1308,10 +1309,14 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
                 <Box as="input" {...inputBase as any} value={draft.title} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft((d) => ({ ...d, title: e.target.value }))} />
               </Box>
 
-              <Grid templateColumns="1fr 1fr" gap="10px">
+              <Grid templateColumns="1fr 1fr 1fr" gap="10px">
                 <Box>
                   <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.06em" mb="6px">Price (EUR)</Text>
                   <Box as="input" {...inputBase as any} placeholder="0.00" value={draft.price} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft((d) => ({ ...d, price: e.target.value }))} />
+                </Box>
+                <Box>
+                  <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.06em" mb="6px" title="AI haggle bot will never go below this">Min (haggle floor)</Text>
+                  <Box as="input" {...inputBase as any} placeholder="optional" value={draft.floorPrice} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft((d) => ({ ...d, floorPrice: e.target.value }))} />
                 </Box>
                 <Box>
                   <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.06em" mb="6px">Stock</Text>

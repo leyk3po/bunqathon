@@ -56,6 +56,7 @@ export function EditModal({
   const [title, setTitle] = useState(listing.title);
   const [description, setDesc] = useState(listing.description);
   const [price, setPrice] = useState(listing.price);
+  const [floorPrice, setFloorPrice] = useState(listing.floorPrice ?? "");
   const [stock, setStock] = useState(listing.stock);
   const [saving, setSaving] = useState(false);
   const [acting, setActing] = useState(false);
@@ -66,13 +67,15 @@ export function EditModal({
   const handleSave = async () => {
     setSaving(true); setError("");
     try {
+      const floorCents = floorPrice.trim() ? centsFromEuros(floorPrice) : null;
       await api.updateDrop(listing.id, {
         title: title.trim() || listing.title,
         description: description.trim(),
         price_cents: centsFromEuros(price),
+        floor_price_cents: floorCents,
         inventory: Math.max(0, stock),
       });
-      onSave({ title, description, price, stock });
+      onSave({ title, description, price, floorPrice: floorPrice.trim() || undefined, stock });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
@@ -223,13 +226,22 @@ export function EditModal({
               />
             </Field>
 
-            <Grid templateColumns="1fr 1fr" gap="12px">
+            <Grid templateColumns="1fr 1fr 1fr" gap="12px">
               <Field label="Price (EUR)">
                 <Box
                   as="input"
                   {...inputStyle as any}
                   value={price}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPrice(e.target.value)}
+                />
+              </Field>
+              <Field label="Min (haggle floor)">
+                <Box
+                  as="input"
+                  {...inputStyle as any}
+                  {...{ placeholder: "optional" } as any}
+                  value={floorPrice}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFloorPrice(e.target.value)}
                 />
               </Field>
               <Field label="Stock">
