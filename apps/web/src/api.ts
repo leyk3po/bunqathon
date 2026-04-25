@@ -242,6 +242,9 @@ export const api = {
       body: JSON.stringify(amount_cents != null ? { amount_cents } : {}),
     }),
 
+  getBunqBalance: (): Promise<{ account_id: number; description: string; balance_cents: number; currency: string; iban: string | null }> =>
+    request("/bunq/balance"),
+
   haggle: (
     slug: string,
     body: { message: string; history: { role: "user" | "assistant"; text: string }[] },

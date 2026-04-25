@@ -7,6 +7,7 @@ import HeroPage from "./components/HeroPage";
 import { BunqWordmark } from "./components/BunqWordmark";
 import { GlassCard } from "./components/GlassCard";
 import { HagglePanel } from "./components/HagglePanel";
+import { BunqBalanceWidget } from "./components/BunqBalanceWidget";
 import { ProductTileImage } from "./components/ProductTileImage";
 import { VoiceWave } from "./components/VoiceWave";
 import { PaymentCelebration, type CelebrationData } from "./components/PaymentCelebration";
@@ -410,6 +411,7 @@ function DashboardPage() {
   const [notifications, setNotifications] = useState<SaleNotification[]>([]);
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement | null>(null);
+  const [balanceBump, setBalanceBump] = useState(0);
   const sellerId = seller?.id ?? "";
   const sellerName = seller?.display_name ?? "";
 
@@ -417,6 +419,7 @@ function DashboardPage() {
 
   const handleCelebrate = useCallback((d: CelebrationData) => {
     setCelebration(d);
+    setBalanceBump((b) => b + 1);
     setNotifications((prev) => [
       {
         id: `${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
@@ -740,6 +743,11 @@ function DashboardPage() {
 
       {/* Page body */}
       <Box maxW="1200px" mx="auto" px={{ base: "16px", md: "40px" }} py={{ base: "24px", md: "32px" }} position="relative" zIndex={1}>
+
+        {/* Live bunq balance */}
+        <Box mb={{ base: "16px", md: "20px" }}>
+          <BunqBalanceWidget bumpKey={balanceBump} />
+        </Box>
 
         {/* Stats */}
         <SimpleGrid columns={3} gap={{ base: "10px", md: "16px" }} mb={{ base: "24px", md: "32px" }}>
@@ -1412,6 +1420,7 @@ function LiveWallPage() {
   const [error, setError] = useState("");
   const [activity, setActivity] = useState<WallActivity[]>([]);
   const [celebration, setCelebration] = useState<CelebrationData | null>(null);
+  const [wallBump, setWallBump] = useState(0);
   const dropRef = useRef<DropDetail | null>(null);
   useWallCountdown(drop?.expires_at);
 
@@ -1523,6 +1532,7 @@ function LiveWallPage() {
           sold_count: typeof data.sold_count === "number" ? data.sold_count : existing.sold_count + 1,
         } : existing);
         pushActivity(`${current?.title ?? "Drop"} sold. ${nextInventory} left in stock.`, "sale");
+        setWallBump((b) => b + 1);
         if (current) {
           setCelebration({
             title: current.title,
@@ -1742,8 +1752,11 @@ function LiveWallPage() {
             </Box>
           </Flex>
 
-          {/* Right: QR + activity */}
+          {/* Right: balance + QR + activity */}
           <Flex direction="column" gap="16px">
+            {/* Live bunq balance */}
+            <BunqBalanceWidget bumpKey={wallBump} variant="wall" />
+
             {/* QR card */}
             <Box className="glass-card" borderRadius="20px" p={{ base: "22px", md: "26px" }}>
               <Text fontFamily={FONT} fontSize="11px" fontWeight="700" color={MUTED} textTransform="uppercase" letterSpacing="0.12em" mb="6px">

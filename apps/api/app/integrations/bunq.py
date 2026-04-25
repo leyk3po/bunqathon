@@ -26,6 +26,15 @@ class BunqResolvedPaymentEvent:
     payload: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class BunqAccountBalance:
+    account_id: int
+    description: str
+    balance_cents: int
+    currency: str
+    iban: str | None
+
+
 class BunqError(Exception):
     pass
 
@@ -173,6 +182,50 @@ def resolve_payment_callback(payload: dict[str, Any]) -> BunqResolvedPaymentEven
         amount_cents=amount_cents,
         event_id=event_id,
         payload=resolved_payload,
+    )
+
+
+def fetch_account_balance() -> BunqAccountBalance:
+    client = _authenticated_client()
+    account_id = _account_id(client)
+    try:
+        response = client.get(f"user/{client.user_id}/monetary-account/{account_id}")
+    except (httpx.HTTPError, BunqClientError) as exc:
+        raise BunqUpstreamError(f"bunq balance fetch failed: {exc}") from exc
+
+    account_obj: dict[str, Any] = {}
+    for item in response or []:
+        for key, value in item.items():
+            if isinstance(value, dict) and key.startswith("MonetaryAccount"):
+                account_obj = value
+                break
+        if account_obj:
+            break
+
+    balance = account_obj.get("balance") or {}
+    raw_value = balance.get("value")
+    currency = str(balance.get("currency") or "EUR")
+    try:
+        balance_cents = int(round(float(raw_value) * 100)) if raw_value is not None else 0
+    except (TypeError, ValueError):
+        balance_cents = 0
+
+    description = str(account_obj.get("description") or "Main account")
+
+    iban: str | None = None
+    aliases = account_obj.get("alias")
+    if isinstance(aliases, list):
+        for alias in aliases:
+            if isinstance(alias, dict) and alias.get("type") == "IBAN":
+                iban = str(alias.get("value") or "") or None
+                break
+
+    return BunqAccountBalance(
+        account_id=account_id,
+        description=description,
+        balance_cents=balance_cents,
+        currency=currency,
+        iban=iban,
     )
 
 
