@@ -27,6 +27,7 @@ class DropCreate(BaseModel):
     description: str = ""
     pitch: str | None = None
     price_cents: int = Field(ge=0, default=0)
+    floor_price_cents: int | None = Field(default=None, ge=0)
     currency: str = Field(default="EUR", min_length=3, max_length=3)
     inventory: int = Field(ge=1, default=1)
     media_url: str | None = None
@@ -59,6 +60,7 @@ class DropUpdate(BaseModel):
     description: str | None = None
     pitch: str | None = None
     price_cents: int | None = Field(default=None, ge=0)
+    floor_price_cents: int | None = Field(default=None, ge=0)
     currency: str | None = Field(default=None, min_length=3, max_length=3)
     inventory: int | None = Field(default=None, ge=0)
     media_url: str | None = None
@@ -90,6 +92,7 @@ class DropPublic(BaseModel):
     title: str
     description: str
     price_cents: int
+    floor_price_cents: int | None = None
     currency: str
     inventory: int
     sold_count: int
@@ -135,6 +138,22 @@ class GeneratePreviewRequest(BaseModel):
     media_url: str | None = None
 
 
+class HaggleTurn(BaseModel):
+    role: str = Field(pattern="^(user|assistant)$")
+    text: str = Field(min_length=1, max_length=600)
+
+
+class HaggleRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=600)
+    history: list[HaggleTurn] = Field(default_factory=list, max_length=20)
+
+
+class HaggleResponse(BaseModel):
+    reply: str
+    offer_cents: int | None = None
+    deal_cents: int | None = None
+
+
 class GeneratePreviewResponse(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
@@ -143,6 +162,8 @@ class GeneratePreviewResponse(BaseModel):
                 "description": "handmade tote for our student design club, only five left",
                 "price_cents": 2450,
                 "currency": "EUR",
+                "inventory": 5,
+                "floor_price_cents": 2000,
             }
         }
     )
@@ -152,3 +173,4 @@ class GeneratePreviewResponse(BaseModel):
     price_cents: int
     currency: str
     inventory: int
+    floor_price_cents: int | None = None

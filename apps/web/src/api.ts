@@ -36,6 +36,7 @@ export type DropPublic = {
   title: string;
   description: string;
   price_cents: number;
+  floor_price_cents: number | null;
   currency: string;
   inventory: number;
   sold_count: number;
@@ -62,12 +63,23 @@ export type MediaUploadResponse = {
   size: number;
 };
 
+export type NotificationPublic = {
+  id: string;
+  drop_id: string | null;
+  drop_title: string;
+  amount_cents: number;
+  currency: string;
+  read: boolean;
+  created_at: string;
+};
+
 export type GeneratePreviewResponse = {
   title: string;
   description: string;
   price_cents: number;
   currency: string;
   inventory: number;
+  floor_price_cents: number | null;
 };
 
 export type SellerPublic = {
@@ -193,6 +205,7 @@ export const api = {
     description?: string;
     pitch?: string | null;
     price_cents: number;
+    floor_price_cents?: number | null;
     currency?: string;
     inventory: number;
     media_url?: string | null;
@@ -217,14 +230,26 @@ export const api = {
 
   getDrop: (slug: string): Promise<DropDetail> => request<DropDetail>(`/drops/${encodeURIComponent(slug)}`),
 
-  updateDrop: (id: string, payload: Partial<{ title: string; description: string; pitch: string | null; price_cents: number; currency: string; inventory: number; media_url: string | null; expires_at: string | null }>): Promise<DropDetail> =>
+  updateDrop: (id: string, payload: Partial<{ title: string; description: string; pitch: string | null; price_cents: number; floor_price_cents: number | null; currency: string; inventory: number; media_url: string | null; expires_at: string | null }>): Promise<DropDetail> =>
     request<DropDetail>(`/drops/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(payload) }),
 
   publish: (id: string): Promise<DropDetail> =>
     request<DropDetail>(`/drops/${encodeURIComponent(id)}/publish`, { method: "POST" }),
 
-  mockPayment: (id: string): Promise<DropDetail> =>
-    request<DropDetail>(`/drops/${encodeURIComponent(id)}/mock-payment`, { method: "POST" }),
+  mockPayment: (id: string, amount_cents?: number | null): Promise<DropDetail> =>
+    request<DropDetail>(`/drops/${encodeURIComponent(id)}/mock-payment`, {
+      method: "POST",
+      body: JSON.stringify(amount_cents != null ? { amount_cents } : {}),
+    }),
+
+  haggle: (
+    slug: string,
+    body: { message: string; history: { role: "user" | "assistant"; text: string }[] },
+  ): Promise<{ reply: string; offer_cents: number | null; deal_cents: number | null }> =>
+    request(`/drops/${encodeURIComponent(slug)}/haggle`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   archive: (id: string): Promise<DropDetail> =>
     request<DropDetail>(`/drops/${encodeURIComponent(id)}/archive`, { method: "POST" }),
@@ -233,6 +258,12 @@ export const api = {
     request<Record<string, unknown>[]>(`/drops/${encodeURIComponent(slug)}/events`),
 
   streamDrop: (slug: string): EventSource => new EventSource(apiUrl(`/drops/${encodeURIComponent(slug)}/stream`)),
+
+  listNotifications: (): Promise<NotificationPublic[]> =>
+    request<NotificationPublic[]>("/notifications"),
+
+  markNotificationsRead: (): Promise<void> =>
+    request<void>("/notifications/read", { method: "POST" }),
 };
 
 export { ApiError };

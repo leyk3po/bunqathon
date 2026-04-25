@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Box, Flex, Grid, Image, Link, QrCode, SimpleGrid, Spinner, Text, Textarea } from "@chakra-ui/react";
 import { BrowserRouter, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { api, buyerCheckoutUrl, centsFromEuros, clearAuth, dataUrlToBlob, eurosFromCents, getStoredSeller, persistAuth, persistSeller, type DropDetail, type DropPublic, type DropState, type SellerPublic } from "./api";
+import { api, buyerCheckoutUrl, centsFromEuros, clearAuth, dataUrlToBlob, eurosFromCents, getStoredSeller, persistAuth, persistSeller, type DropDetail, type DropPublic, type DropState, type NotificationPublic, type SellerPublic } from "./api";
 import { G, DARK, INK_FG, BG, SURFACE, CARD, BORDER, TEXT, MUTED, FONT, PANEL } from "./theme/tokens";
+import HeroPage from "./components/HeroPage";
 import { BunqWordmark } from "./components/BunqWordmark";
 import { GlassCard } from "./components/GlassCard";
+import { HagglePanel } from "./components/HagglePanel";
 import { ProductTileImage } from "./components/ProductTileImage";
 import { VoiceWave } from "./components/VoiceWave";
 import { PaymentCelebration, type CelebrationData } from "./components/PaymentCelebration";
@@ -118,12 +120,12 @@ function makeLocalDraft(d: DraftListing): DraftListing {
 
 type DraftListing = {
   imageUrl: string; prompt: string; title: string;
-  description: string; price: string; stock: number;
+  description: string; price: string; floorPrice: string; stock: number;
   category: string; audioUrl?: string; expiresDate?: string; expiresTime?: string;
 };
 
 const emptyDraft: DraftListing = {
-  imageUrl: "", prompt: "", title: "", description: "", price: "", stock: 1, category: "Quick drop",
+  imageUrl: "", prompt: "", title: "", description: "", price: "", floorPrice: "", stock: 1, category: "Quick drop",
 };
 
 // ─── Theme toggle ─────────────────────────────────────────────────────────────
@@ -289,13 +291,8 @@ function LoginPage() {
       {/* Content */}
       <Flex direction="column" align="center" w="full" maxW="400px" position="relative" zIndex={1}>
         {/* Wordmark */}
-        <Text
-          className="login-logo-in"
-          fontFamily={FONT} fontWeight="700" fontSize="18px"
-          color={TEXT} letterSpacing="-0.5px" mb="28px"
-        >
-          FlashDrop
-        </Text>
+        <BunqWordmark height={48} />
+        <Box h="24px" w="1px" bg={BORDER} flexShrink={0} />
 
         {/* Card */}
         <GlassCard className="login-card-in" w="full" borderRadius="20px" p={{ base: "28px", md: "36px" }}>
@@ -386,6 +383,18 @@ function LoginPage() {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
+type SaleNotification = { id: string; title: string; amount: string; time: string; read: boolean };
+
+function notifFromApi(n: NotificationPublic): SaleNotification {
+  return {
+    id: n.id,
+    title: n.drop_title,
+    amount: `€ ${(n.amount_cents / 100).toFixed(2)}`,
+    time: new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(n.created_at)),
+    read: n.read,
+  };
+}
+
 function DashboardPage() {
   const navigate                   = useNavigate();
   const { dark, toggle }           = useTheme();
@@ -398,8 +407,44 @@ function DashboardPage() {
   const [previewTarget, setPreviewTarget] = useState<Listing | null>(null);
   const [celebration, setCelebration] = useState<CelebrationData | null>(null);
   const [activeStatuses, setActiveStatuses] = useState<DropStatusFilter[]>([]);
+  const [notifications, setNotifications] = useState<SaleNotification[]>([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement | null>(null);
   const sellerId = seller?.id ?? "";
   const sellerName = seller?.display_name ?? "";
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const handleCelebrate = useCallback((d: CelebrationData) => {
+    setCelebration(d);
+    setNotifications((prev) => [
+      {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+        title: d.title,
+        amount: d.amount,
+        time: nowTime(),
+        read: false,
+      },
+      ...prev,
+    ].slice(0, 30));
+  }, []);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    api.markNotificationsRead().catch(() => {});
+  }, [notifOpen]);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [notifOpen]);
 
   const liveCount  = listings.filter((l) => l.status === "live").length;
   const stockCount = listings.reduce((t, l) => t + l.stock, 0);
@@ -444,6 +489,13 @@ function DashboardPage() {
 
   useEffect(() => { fetchDrops(); }, [fetchDrops]);
 
+  useEffect(() => {
+    if (!sellerId) return;
+    api.listNotifications()
+      .then((list) => setNotifications(list.map(notifFromApi)))
+      .catch(() => {});
+  }, [sellerId]);
+
   const updateListing = useCallback((id: string, u: Partial<Listing>) => {
     setListings((cur) =>
       cur
@@ -461,7 +513,7 @@ function DashboardPage() {
   }, []);
 
   return (
-    <Box bg={BG} minH="100dvh" pb="120px" position="relative">
+    <Box bg={BG} minH="100dvh" pb="120px" position="relative" className="page-enter">
       {/* Animated gradient background */}
       <Box className="grad-bg">
         <Box className="grad-orb orb-1" />
@@ -516,6 +568,100 @@ function DashboardPage() {
                 </Text>
               </Flex>
             )}
+
+            {/* Notification bell */}
+            <Box position="relative" ref={notifRef as React.RefObject<HTMLDivElement>}>
+              <Box
+                as="button"
+                onClick={() => setNotifOpen((o) => !o)}
+                w="32px" h="32px"
+                borderRadius="50%"
+                bg={SURFACE}
+                border="1px solid"
+                borderColor={BORDER}
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                cursor="pointer"
+                flexShrink={0}
+                _hover={{ bg: BORDER }}
+                position="relative"
+                title="Notifications"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2Zm6-6V11a6 6 0 0 0-5-5.91V4a1 1 0 1 0-2 0v1.09A6 6 0 0 0 6 11v5l-1.29 1.29A1 1 0 0 0 5.41 19H18.6a1 1 0 0 0 .7-1.71L18 16Z" fill="currentColor" />
+                </svg>
+                {unreadCount > 0 && (
+                  <Box
+                    position="absolute"
+                    top="-2px"
+                    right="-2px"
+                    w="14px"
+                    h="14px"
+                    borderRadius="50%"
+                    bg="#dc2626"
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                  >
+                    <Text fontFamily={FONT} fontSize="9px" fontWeight="700" color="white" lineHeight={1}>
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </Text>
+                  </Box>
+                )}
+              </Box>
+
+              {notifOpen && (
+                <Box
+                  position="absolute"
+                  top="calc(100% + 8px)"
+                  right={0}
+                  w="300px"
+                  bg={CARD}
+                  border="1px solid"
+                  borderColor={BORDER}
+                  borderRadius="12px"
+                  boxShadow="0 8px 32px rgba(0,0,0,0.16)"
+                  zIndex={50}
+                  overflow="hidden"
+                >
+                  <Box px="14px" py="10px" borderBottom="1px solid" borderColor={BORDER}>
+                    <Text fontFamily={FONT} fontSize="12px" fontWeight="700" color={TEXT} textTransform="uppercase" letterSpacing="0.06em">
+                      Sales
+                    </Text>
+                  </Box>
+                  {notifications.length === 0 ? (
+                    <Box px="14px" py="20px" textAlign="center">
+                      <Text fontFamily={FONT} fontSize="13px" color={MUTED}>No sales yet</Text>
+                    </Box>
+                  ) : (
+                    <Box maxH="320px" overflowY="auto">
+                      {notifications.map((n) => (
+                        <Box
+                          key={n.id}
+                          px="14px"
+                          py="10px"
+                          borderBottom="1px solid"
+                          borderColor={BORDER}
+                          bg={n.read ? "transparent" : SURFACE}
+                          _last={{ borderBottom: "none" }}
+                        >
+                          <Flex justify="space-between" align="center" mb="2px">
+                            <Text fontFamily={FONT} fontSize="13px" fontWeight="600" color={TEXT} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap" maxW="180px">
+                              {n.title}
+                            </Text>
+                            <Text fontFamily={FONT} fontSize="13px" fontWeight="700" color="#16a34a">
+                              {n.amount}
+                            </Text>
+                          </Flex>
+                          <Text fontFamily={FONT} fontSize="11px" color={MUTED}>{n.time}</Text>
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+              )}
+            </Box>
 
             <ThemeToggle dark={dark} toggle={toggle} />
 
@@ -665,7 +811,7 @@ function DashboardPage() {
                 onPreview={() => setPreviewTarget(l)}
                 onEdit={() => setEditTarget(l)}
                 onWall={() => navigate(`/wall/${l.slug}`)}
-                onCelebrate={setCelebration}
+                onCelebrate={handleCelebrate}
               />
             ))}
           </SimpleGrid>
@@ -866,6 +1012,7 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
         description: preview.description,
         price: eurosFromCents(preview.price_cents),
         stock: preview.inventory,
+        floorPrice: preview.floor_price_cents != null ? eurosFromCents(preview.floor_price_cents) : d.floorPrice,
       }));
     } catch {
       setApiError("AI unavailable — fill in the details below.");
@@ -881,7 +1028,8 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
       const expiresIso = (draft.expiresDate && draft.expiresTime)
         ? new Date(`${draft.expiresDate}T${draft.expiresTime}`).toISOString()
         : null;
-      const created  = await api.createDrop({ title: draft.title.trim() || titleFromPrompt(draft.prompt), description: draft.description.trim(), pitch: draft.prompt.trim() || null, price_cents: centsFromEuros(draft.price), inventory: Math.max(1, draft.stock), media_url: mediaUrl, expires_at: expiresIso });
+      const floorCents = draft.floorPrice.trim() ? centsFromEuros(draft.floorPrice) : null;
+      const created  = await api.createDrop({ title: draft.title.trim() || titleFromPrompt(draft.prompt), description: draft.description.trim(), pitch: draft.prompt.trim() || null, price_cents: centsFromEuros(draft.price), floor_price_cents: floorCents, inventory: Math.max(1, draft.stock), media_url: mediaUrl, expires_at: expiresIso });
       const live     = await api.publish(created.id);
       onPost({ id: live.id, slug: live.slug, title: live.title, description: live.description, price: eurosFromCents(live.price_cents), stock: live.inventory, category: draft.category, imageUrl: draft.imageUrl, prompt: draft.prompt, status: "live", state: live.state, createdAt: nowTime(), audioUrl: draft.audioUrl, bunqTabUrl: live.bunq_tab_url, expiresAt: live.expires_at ?? undefined });
       onClose();
@@ -1349,21 +1497,11 @@ function LiveWallPage() {
     };
   }, [slug]);
 
-  // Force dark theme — wall is a display surface
-  useEffect(() => {
-    const html = document.documentElement;
-    const prev = html.getAttribute("data-theme");
-    html.setAttribute("data-theme", "dark");
-    return () => {
-      if (prev) html.setAttribute("data-theme", prev);
-      else html.removeAttribute("data-theme");
-    };
-  }, []);
 
   if (loading) {
     return (
       <Flex minH="100dvh" bg="#090909" align="center" justify="center">
-        <Spinner size="xl" color="whiteAlpha.500" />
+        <Spinner size="xl" />
       </Flex>
     );
   }
@@ -1400,74 +1538,62 @@ function LiveWallPage() {
   const soldPct = total > 0 ? Math.min(100, Math.round((drop.sold_count / total) * 100)) : 0;
 
   return (
-    <Box minH="100dvh" bg={PANEL} color="white" position="relative" overflow="hidden">
-      <Box
-        position="absolute"
-        inset={0}
-        bg="radial-gradient(circle at 14% 18%, rgba(0,213,75,0.18), transparent 32%), radial-gradient(circle at 85% 18%, rgba(62,137,255,0.17), transparent 28%), radial-gradient(circle at 50% 92%, rgba(255,157,64,0.20), transparent 34%), linear-gradient(180deg, #04080c 0%, #09131b 42%, #071018 100%)"
-      />
-      <Box
-        position="absolute"
-        insetX="-10%"
-        top="-24%"
-        h="420px"
-        bg="radial-gradient(circle, rgba(255,255,255,0.18), transparent 60%)"
-        transform="rotate(-8deg)"
-        opacity={0.28}
-        filter="blur(48px)"
-      />
+    <Box minH="100dvh" bg={BG} position="relative" overflow="hidden" className="page-enter">
+      <Box className="grad-bg">
+        <Box className="grad-orb orb-1" />
+        <Box className="grad-orb orb-2" />
+        <Box className="grad-orb orb-3" />
+      </Box>
 
-      <Box position="relative" zIndex={1} px={{ base: "18px", md: "28px", xl: "40px" }} py={{ base: "18px", md: "24px" }}>
-        <Flex align="center" justify="space-between" gap="12px" mb={{ base: "18px", md: "24px" }} wrap="wrap">
-          <Flex align="center" gap="10px">
-            <Box
-              w="10px"
-              h="10px"
-              borderRadius="50%"
-              bg={drop.state === "live" ? G : "whiteAlpha.500"}
-              boxShadow={drop.state === "live" ? "0 0 0 8px rgba(0,213,75,0.16)" : "none"}
-            />
-            <Text fontFamily={FONT} fontSize="12px" fontWeight="700" color="whiteAlpha.700" textTransform="uppercase" letterSpacing="0.16em">
-              FlashDrop Live Wall
-            </Text>
-          </Flex>
+      {/* Nav — matches dashboard glass nav */}
+      <Box
+        className="glass-nav"
+        position="sticky"
+        top={0}
+        zIndex={10}
+        px={{ base: "18px", md: "32px" }}
+        h="60px"
+        display="grid"
+        gridTemplateColumns="auto minmax(0,1fr) auto"
+        alignItems="center"
+        gap="12px"
+      >
+        {/* Left: back arrow + logo */}
+        <Flex align="center" gap="12px">
+          <Box
+            as="button"
+            bg="none" border="none" color={TEXT}
+            cursor="pointer" display="inline-flex" alignItems="center"
+            p="4px" flexShrink={0}
+            _hover={{ opacity: 0.6 }}
+            onClick={() => navigate("/dashboard")}
+          >
+            <svg width="28" height="20" viewBox="0 0 36 24" fill="none">
+              <path d="M34 12H2M2 12l10-9M2 12l10 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </Box>
+          <Box h="16px" w="1px" bg={BORDER} flexShrink={0} display={{ base: "none", md: "block" }} />
+          <Box display={{ base: "none", md: "block" }}>
+            <BunqWordmark height={32} />
+          </Box>
+        </Flex>
 
-          <Flex align="center" gap="10px" wrap="wrap">
-            <Box
-              as="button"
-              border="1px solid rgba(255,255,255,0.14)"
-              borderRadius="999px"
-              px="14px"
-              h="38px"
-              display="flex"
-              alignItems="center"
-              fontFamily={FONT}
-              fontSize="13px"
-              fontWeight="600"
-              bg="rgba(255,255,255,0.06)"
-              color="white"
-              cursor="pointer"
-              onClick={() => window.open(checkoutUrl, "_blank", "noopener,noreferrer")}
-            >
-              Open buyer checkout
-            </Box>
-            <Box
-              as="button"
-              border="1px solid rgba(255,255,255,0.12)"
-              borderRadius="999px"
-              px="14px"
-              h="38px"
-              bg="rgba(255,255,255,0.04)"
-              color="white"
-              fontFamily={FONT}
-              fontSize="13px"
-              fontWeight="600"
-              cursor="pointer"
-              onClick={() => navigate("/dashboard")}
-            >
-              Exit wall
-            </Box>
-          </Flex>
+        {/* Center: title */}
+        <Text fontFamily={FONT} fontSize={{ base: "13px", md: "14px" }} fontWeight="600" color={TEXT} textAlign="center" whiteSpace="nowrap" overflow="hidden" textOverflow="ellipsis" display={{ base: "none", sm: "block" }}>
+          {drop.title}
+        </Text>
+
+        {/* Right: live status */}
+        <Flex align="center" gap="7px" justify="flex-end">
+          <Box
+            w="7px" h="7px" borderRadius="50%"
+            position="relative" flexShrink={0}
+            className={[dotClass, isLive ? "live-pulse" : undefined].filter(Boolean).join(" ") || undefined}
+            style={isLive ? { backgroundColor: "#ef4444", "--dot-clr": "#ef4444" } as React.CSSProperties : { backgroundColor: MUTED }}
+          />
+          <Text fontFamily={FONT} fontSize="12px" fontWeight="600" color={isLive ? TEXT : MUTED} whiteSpace="nowrap">
+            {dropStateLabel(drop.state)}
+          </Text>
         </Flex>
       </Box>
 
@@ -1539,15 +1665,14 @@ function LiveWallPage() {
                 ].map((item) => (
                   <Box
                     key={item.label}
-                    borderRadius="18px"
-                    p={{ base: "16px", md: "18px" }}
-                    bg="rgba(255,255,255,0.06)"
-                    border="1px solid rgba(255,255,255,0.09)"
+                    className="glass-card"
+                    borderRadius="14px"
+                    p={{ base: "14px", md: "16px" }}
                   >
-                    <Text fontFamily={FONT} fontSize="11px" fontWeight="700" color="whiteAlpha.600" textTransform="uppercase" letterSpacing="0.08em">
+                    <Text fontFamily={FONT} fontSize="10px" fontWeight="700" color={MUTED} textTransform="uppercase" letterSpacing="0.08em">
                       {item.label}
                     </Text>
-                    <Text fontFamily={FONT} fontSize={{ base: "24px", md: "28px" }} fontWeight="700" letterSpacing="-0.8px" mt="10px">
+                    <Text fontFamily={FONT} fontSize={{ base: "24px", md: "28px" }} fontWeight="700" letterSpacing="-0.8px" color={TEXT} mt="6px">
                       {item.value}
                     </Text>
                   </Box>
@@ -1670,6 +1795,7 @@ function BuyerCheckoutPage() {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState("");
+  const [haggleCents, setHaggleCents] = useState<number | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -1689,8 +1815,12 @@ function BuyerCheckoutPage() {
     setPaying(true);
     setError("");
     try {
-      await api.mockPayment(drop.id);
-      navigate(`/buy/${encodeURIComponent(drop.slug)}/success`, { replace: true });
+      const overrideCents = haggleCents != null && haggleCents !== drop.price_cents ? haggleCents : null;
+      await api.mockPayment(drop.id, overrideCents);
+      const successUrl = overrideCents != null
+        ? `/buy/${encodeURIComponent(drop.slug)}/success?paid=${overrideCents}`
+        : `/buy/${encodeURIComponent(drop.slug)}/success`;
+      navigate(successUrl, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Payment failed");
       setPaying(false);
@@ -1733,14 +1863,40 @@ function BuyerCheckoutPage() {
             {drop.description || "Complete the sandbox buyer flow below."}
           </Text>
 
-          <Flex align="baseline" justify="space-between" mt="20px" mb="18px">
-            <Text fontFamily={FONT} fontSize="30px" fontWeight="700" color={TEXT} letterSpacing="-0.7px">
-              € {eurosFromCents(drop.price_cents)}
-            </Text>
+          <Flex align="baseline" justify="space-between" mt="20px" mb="18px" gap="16px" wrap="wrap">
+            <Box>
+              {haggleCents != null && haggleCents !== drop.price_cents ? (
+                <Flex align="baseline" gap="10px">
+                  <Text fontFamily={FONT} fontSize="30px" fontWeight="700" color={TEXT} letterSpacing="-0.7px">
+                    € {eurosFromCents(haggleCents)}
+                  </Text>
+                  <Text fontFamily={FONT} fontSize="14px" color={MUTED} textDecoration="line-through">
+                    € {eurosFromCents(drop.price_cents)}
+                  </Text>
+                  <Box bg={G} color="black" fontFamily={FONT} fontSize="10px" fontWeight="800" letterSpacing="0.16em" textTransform="uppercase" px="6px" py="3px" borderRadius="4px">
+                    Haggled
+                  </Box>
+                </Flex>
+              ) : (
+                <Text fontFamily={FONT} fontSize="30px" fontWeight="700" color={TEXT} letterSpacing="-0.7px">
+                  € {eurosFromCents(drop.price_cents)}
+                </Text>
+              )}
+            </Box>
             <Text fontFamily={FONT} fontSize="12px" color={MUTED}>
               {Math.max(0, drop.inventory)} left
             </Text>
           </Flex>
+
+          {checkoutState === "ready" && (
+            <Box mb="18px">
+              <HagglePanel
+                slug={drop.slug}
+                listedPriceCents={drop.price_cents}
+                onDeal={(cents) => setHaggleCents(cents)}
+              />
+            </Box>
+          )}
 
           <Box
             bg={SURFACE}
@@ -1771,7 +1927,15 @@ function BuyerCheckoutPage() {
             cursor={paying || checkoutState !== "ready" ? "not-allowed" : "pointer"}
             onClick={paying || checkoutState !== "ready" ? undefined : handlePay}
           >
-            {checkoutState === "paid" ? "Already paid" : checkoutState === "unavailable" ? "Unavailable" : paying ? "Processing payment…" : "Pay now"}
+            {checkoutState === "paid"
+              ? "Already paid"
+              : checkoutState === "unavailable"
+              ? "Unavailable"
+              : paying
+              ? "Processing payment…"
+              : haggleCents != null && haggleCents !== drop.price_cents
+              ? `Pay haggled € ${eurosFromCents(haggleCents)}`
+              : "Pay now"}
           </Box>
 
           <Box mt="14px">
@@ -1808,10 +1972,16 @@ function BuyerCheckoutPage() {
 function BuyerSuccessPage() {
   const { slug = "" } = useParams();
   const [drop, setDrop] = useState<DropDetail | null>(null);
+  const paidParam = typeof window !== "undefined"
+    ? Number(new URLSearchParams(window.location.search).get("paid") || "")
+    : NaN;
+  const paidCents = Number.isFinite(paidParam) && paidParam > 0 ? paidParam : null;
 
   useEffect(() => {
     api.getDrop(slug).then(setDrop).catch(() => undefined);
   }, [slug]);
+
+  const wasHaggled = paidCents != null && drop != null && paidCents !== drop.price_cents;
 
   return (
     <Flex minH="100dvh" bg={BG} align="center" justify="center" p={{ base: 4, md: 8 }}>
@@ -1839,9 +2009,21 @@ function BuyerSuccessPage() {
           {drop ? `${drop.title} was marked as paid and the seller view should now be updated.` : "The seller dashboard should now reflect the payment."}
         </Text>
         {drop && (
-          <Text fontFamily={FONT} fontSize="22px" fontWeight="700" color={TEXT} mt="20px">
-            € {eurosFromCents(drop.price_cents)}
-          </Text>
+          <Flex align="baseline" gap="10px" mt="20px" wrap="wrap">
+            <Text fontFamily={FONT} fontSize="26px" fontWeight="800" color={TEXT}>
+              € {eurosFromCents(paidCents ?? drop.price_cents)}
+            </Text>
+            {wasHaggled && (
+              <>
+                <Text fontFamily={FONT} fontSize="14px" color={MUTED} textDecoration="line-through">
+                  € {eurosFromCents(drop.price_cents)}
+                </Text>
+                <Box bg={G} color="black" fontFamily={FONT} fontSize="10px" fontWeight="800" letterSpacing="0.16em" textTransform="uppercase" px="6px" py="3px" borderRadius="4px">
+                  Haggled
+                </Box>
+              </>
+            )}
+          </Flex>
         )}
       </Box>
     </Flex>
@@ -1853,7 +2035,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route index element={<LoginPage />} />
+        <Route index element={<HeroPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/inspo" element={<Navigate replace to="/" />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/wall/:slug" element={<LiveWallPage />} />
         <Route path="/buy/:slug" element={<BuyerCheckoutPage />} />

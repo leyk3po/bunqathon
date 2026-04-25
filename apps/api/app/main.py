@@ -14,6 +14,7 @@ from app.drops.stream import router as drops_stream_router
 from app.health.router import router as health_router
 from app.media.constants import UPLOAD_DIR
 from app.media.router import router as media_router
+from app.notifications.router import router as notifications_router
 from app.webhooks.router import router as webhooks_router
 
 
@@ -47,6 +48,7 @@ def create_app() -> FastAPI:
         drops_router,
         drops_stream_router,
         media_router,
+        notifications_router,
         webhooks_router,
     ):
         api_router.include_router(router)

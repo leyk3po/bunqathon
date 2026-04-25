@@ -22,6 +22,7 @@ class Generated:
     price_cents: int
     currency: str = "EUR"
     inventory: int = 1
+    floor_price_cents: int | None = None  # extracted from pitch ("won't take less than €15")
 
 
 class AIError(Exception):
@@ -50,6 +51,12 @@ _OUTPUT_SCHEMA = {
         "price_cents": {"type": "integer", "minimum": 100, "maximum": 500000},
         "currency": {"type": "string", "enum": ["EUR"]},
         "inventory": {"type": "integer", "minimum": 1, "maximum": 10000},
+        "floor_price_cents": {
+            "type": ["integer", "null"],
+            "description": "Seller's stated minimum/floor in cents (e.g. 'won't take less than €15' -> 1500). null if not mentioned.",
+            "minimum": 0,
+            "maximum": 500000,
+        },
     },
     "required": ["title", "description", "price_cents", "currency", "inventory"],
     "additionalProperties": False,
@@ -130,6 +137,8 @@ def _anthropic_generate_drop_copy(pitch: str, media_url: str | None = None) -> G
         "system": (
             "Return a compact, commercially useful draft for a temporary mobile storefront. "
             "Do not be generic. Prefer concrete, energetic phrasing. Remember to count the amount of objects being sold in the picture correctly. "
+            "If the seller mentions a minimum/floor/won't-go-below price (e.g. 'I won't take less than 15', 'minimum is 12'), put that in floor_price_cents in cents. "
+            "Otherwise set floor_price_cents to null. Never invent a floor the seller didn't mention. "
             "Output must be valid JSON matching the provided schema."
         ),
         "messages": [
@@ -163,12 +172,21 @@ def _anthropic_generate_drop_copy(pitch: str, media_url: str | None = None) -> G
         generated_inventory = int(parsed["inventory"])
         if inventory_hint is not None:
             generated_inventory = inventory_hint
+        floor_raw = parsed.get("floor_price_cents")
+        floor: int | None = None
+        if floor_raw is not None:
+            try:
+                floor_int = int(floor_raw)
+                floor = floor_int if floor_int > 0 else None
+            except (TypeError, ValueError):
+                floor = None
         return Generated(
             title=str(parsed["title"]).strip()[:80],
             description=str(parsed["description"]).strip()[:300],
             price_cents=int(parsed["price_cents"]),
             currency=str(parsed["currency"]).upper(),
             inventory=max(1, generated_inventory),
+            floor_price_cents=floor,
         )
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         raise AIUpstreamError("Anthropic response could not be parsed into preview JSON") from exc
