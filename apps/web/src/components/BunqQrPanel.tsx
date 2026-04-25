@@ -15,7 +15,18 @@ export function BunqQrPanel({ url, price }: { url: string; price: string }) {
       gap="14px"
       p="12px"
     >
-      <QrCode.Root bg="white" borderRadius="6px" p="5px" size="sm" value={url} flexShrink={0}>
+      <QrCode.Root
+        bg="white"
+        color="#111111"
+        border="1px solid"
+        borderColor="rgba(17,17,17,0.14)"
+        borderRadius="8px"
+        boxShadow="0 10px 24px rgba(0,0,0,0.18)"
+        p="6px"
+        size="sm"
+        value={url}
+        flexShrink={0}
+      >
         <QrCode.Frame>
           <QrCode.Pattern />
         </QrCode.Frame>
