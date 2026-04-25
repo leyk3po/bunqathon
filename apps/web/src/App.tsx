@@ -1884,6 +1884,14 @@ function BuyerCheckoutPage() {
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState("");
   const [haggleCents, setHaggleCents] = useState<number | null>(null);
+  const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
+
+  useEffect(() => {
+    if (!imagePreviewOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setImagePreviewOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [imagePreviewOpen]);
 
   useEffect(() => {
     let active = true;
@@ -1937,7 +1945,24 @@ function BuyerCheckoutPage() {
   return (
     <Flex minH="100dvh" bg={BG} align="center" justify="center" p={{ base: 4, md: 8 }}>
       <Box className="glass-card" borderRadius="22px" maxW="460px" w="full" overflow="hidden">
-        <Box h="220px" overflow="hidden" bg={SURFACE}>
+        <Box
+          role="button"
+          tabIndex={drop.media_url ? 0 : -1}
+          aria-label="View full image"
+          h="220px"
+          w="full"
+          overflow="hidden"
+          bg={SURFACE}
+          position="relative"
+          cursor={drop.media_url ? "pointer" : "default"}
+          onClick={() => { if (drop.media_url) setImagePreviewOpen(true); }}
+          onKeyDown={(e: React.KeyboardEvent) => {
+            if (drop.media_url && (e.key === "Enter" || e.key === " ")) {
+              e.preventDefault();
+              setImagePreviewOpen(true);
+            }
+          }}
+        >
           <ProductTileImage imageUrl={drop.media_url ?? ""} title={drop.title} />
         </Box>
         <Box p={{ base: "22px", md: "28px" }}>
@@ -2053,6 +2078,62 @@ function BuyerCheckoutPage() {
           </Box>
         </Box>
       </Box>
+
+      {imagePreviewOpen && drop.media_url && (
+        <Box
+          position="fixed"
+          top={0}
+          left={0}
+          right={0}
+          bottom={0}
+          bg="#000"
+          zIndex={60}
+          overflow="hidden"
+          onClick={() => setImagePreviewOpen(false)}
+        >
+          <Box
+            as="button"
+            aria-label="Close image preview"
+            position="fixed"
+            top="20px"
+            right="20px"
+            bg="rgba(255,255,255,0.18)"
+            border="none"
+            color="#fff"
+            fontFamily={FONT}
+            fontSize="22px"
+            fontWeight="700"
+            h="40px"
+            w="40px"
+            borderRadius="full"
+            cursor="pointer"
+            zIndex={61}
+            _hover={{ bg: "rgba(255,255,255,0.28)" }}
+            onClick={(e: React.MouseEvent) => { e.stopPropagation(); setImagePreviewOpen(false); }}
+          >
+            ×
+          </Box>
+          <Flex
+            minH="100dvh"
+            minW="100vw"
+            align="center"
+            justify="center"
+            p={{ base: 4, md: 8 }}
+          >
+            <Image
+              src={drop.media_url}
+              alt={drop.title}
+              maxH="90dvh"
+              maxW="90vw"
+              objectFit="contain"
+              borderRadius="12px"
+              display="block"
+              boxShadow="0 12px 60px rgba(0,0,0,0.6)"
+              onClick={(e: React.MouseEvent) => { e.stopPropagation(); setImagePreviewOpen(false); }}
+            />
+          </Flex>
+        </Box>
+      )}
     </Flex>
   );
 }

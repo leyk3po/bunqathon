@@ -24,6 +24,10 @@ scripts/deploy.sh
 scripts/db.sh
 apps/api/uploads/
 .playwright-mcp/
+/*.png
+/dashboard-*.png
+/lightbox-*.png
+/page-*.png
 .claude/settings.local.json
 ngrok.deb
 ngrok.zip
