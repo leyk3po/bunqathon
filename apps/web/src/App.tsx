@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "reac
 import { Box, Flex, Grid, Image, SimpleGrid, Spinner, Text, Textarea } from "@chakra-ui/react";
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { api, centsFromEuros, dataUrlToBlob, eurosFromCents, type DropPublic } from "./api";
-import { G, DARK, BG, BORDER, TEXT, MUTED, FONT } from "./theme/tokens";
+import { G, DARK, INK_FG, BG, SURFACE, CARD, BORDER, TEXT, MUTED, FONT, PANEL } from "./theme/tokens";
 import { BunqWordmark } from "./components/BunqWordmark";
 import { BunqQrPanel } from "./components/BunqQrPanel";
 import { ProductTileImage } from "./components/ProductTileImage";
@@ -13,7 +13,7 @@ import { EditModal } from "./components/EditModal";
 
 // ─── Shared primitive styles ──────────────────────────────────────────────────
 const inputBase = {
-  fontFamily: FONT, fontSize: "14px", color: TEXT, bg: "white",
+  fontFamily: FONT, fontSize: "14px", color: TEXT, bg: CARD,
   border: "1px solid", borderColor: BORDER, borderRadius: "8px",
   px: "12px", h: "44px", w: "full", outline: "none",
   _focus: { borderColor: DARK, boxShadow: "none" },
@@ -22,23 +22,18 @@ const inputBase = {
 
 const btnPrimary = {
   fontFamily: FONT, fontSize: "14px", fontWeight: "600",
-  bg: DARK, color: "white", border: "none", borderRadius: "8px",
+  bg: DARK, color: INK_FG, border: "none", borderRadius: "8px",
   cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
   transition: "opacity 150ms ease",
   _hover: { opacity: 0.88 },
 } as const;
 
-const btnGreen = {
-  ...btnPrimary,
-  bg: G, color: "black",
-} as const;
-
 const btnOutline = {
   fontFamily: FONT, fontSize: "14px", fontWeight: "500",
-  bg: "white", color: TEXT,
+  bg: CARD, color: TEXT,
   border: "1px solid", borderColor: BORDER, borderRadius: "8px",
   cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-  _hover: { bg: BG },
+  _hover: { bg: SURFACE },
 } as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -91,6 +86,61 @@ const emptyDraft: DraftListing = {
   imageUrl: "", prompt: "", title: "", description: "", price: "", stock: 1, category: "Quick drop",
 };
 
+// ─── Theme toggle ─────────────────────────────────────────────────────────────
+function useTheme() {
+  const [dark, setDark] = useState(() => {
+    const stored = localStorage.getItem("theme");
+    if (stored) return stored === "dark";
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
+  });
+
+  useEffect(() => {
+    const stored = localStorage.getItem("theme");
+    if (stored) document.documentElement.setAttribute("data-theme", stored);
+  }, []);
+
+  const toggle = () => {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
+    localStorage.setItem("theme", next ? "dark" : "light");
+  };
+
+  return { dark, toggle };
+}
+
+function ThemeToggle({ dark, toggle }: { dark: boolean; toggle: () => void }) {
+  return (
+    <Box
+      as="button"
+      onClick={toggle}
+      w="32px" h="32px"
+      borderRadius="50%"
+      bg={SURFACE}
+      border="1px solid"
+      borderColor={BORDER}
+      display="flex"
+      alignItems="center"
+      justifyContent="center"
+      cursor="pointer"
+      flexShrink={0}
+      _hover={{ bg: BORDER }}
+      title={dark ? "Switch to light mode" : "Switch to dark mode"}
+    >
+      {dark ? (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.8" />
+          <path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      ) : (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </Box>
+  );
+}
+
 // ─── Micro icon components ────────────────────────────────────────────────────
 function IconCamera() {
   return (
@@ -130,6 +180,7 @@ function IconArrow() {
 function LoginPage() {
   const navigate = useNavigate();
   const [name, setName] = useState(getSellerId);
+  const { dark, toggle } = useTheme();
 
   const go = () => {
     setSellerId(name.trim() || "demo-seller");
@@ -146,8 +197,14 @@ function LoginPage() {
         direction="column"
         justify="center"
         p={{ base: "40px 24px", md: "60px 80px" }}
-        bg="white"
+        bg={BG}
+        position="relative"
       >
+        {/* Theme toggle top-right of left panel */}
+        <Box position="absolute" top="20px" right="20px">
+          <ThemeToggle dark={dark} toggle={toggle} />
+        </Box>
+
         <Box mb="48px">
           <BunqWordmark subtitle="FlashDrop" />
         </Box>
@@ -186,7 +243,7 @@ function LoginPage() {
 
           <Box
             as="button"
-            {...btnGreen}
+            {...btnPrimary}
             h="48px"
             gap="8px"
             onClick={go}
@@ -208,17 +265,17 @@ function LoginPage() {
         <Flex gap="24px" mt="48px" flexWrap="wrap">
           {["Camera-first", "Voice pitch", "AI listing copy", "bunq payment QR"].map((f) => (
             <Flex key={f} align="center" gap="6px">
-              <Box w="6px" h="6px" borderRadius="50%" bg={G} flexShrink={0} />
+              <Box w="5px" h="5px" borderRadius="50%" bg={MUTED} flexShrink={0} />
               <Text fontFamily={FONT} fontSize="13px" color={MUTED}>{f}</Text>
             </Flex>
           ))}
         </Flex>
       </Flex>
 
-      {/* Right: dark branded panel */}
+      {/* Right: always-dark branded panel */}
       <Flex
         display={{ base: "none", lg: "flex" }}
-        bg={DARK}
+        bg={PANEL}
         direction="column"
         justify="center"
         align="center"
@@ -226,19 +283,18 @@ function LoginPage() {
         position="relative"
         overflow="hidden"
       >
-        {/* Grid overlay */}
         <Box
           position="absolute" inset={0} opacity={0.04}
           backgroundImage="linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)"
           backgroundSize="48px 48px"
         />
 
-        {/* Mock product card */}
+        {/* Mock product card — always white regardless of theme */}
         <Box
           position="relative" zIndex={1}
           bg="white" borderRadius="16px"
           w="full" maxW="360px"
-          boxShadow="0 40px 80px rgba(0,0,0,0.4)"
+          boxShadow="0 40px 80px rgba(0,0,0,0.5)"
           overflow="hidden"
         >
           <Box position="relative">
@@ -254,10 +310,10 @@ function LoginPage() {
           </Box>
           <Box p="16px">
             <Flex justify="space-between" align="baseline" mb="4px">
-              <Text fontFamily={FONT} fontSize="15px" fontWeight="600" color={TEXT}>Campus Tote</Text>
-              <Text fontFamily={FONT} fontSize="15px" fontWeight="700" color={TEXT}>€ 12.00</Text>
+              <Text fontFamily={FONT} fontSize="15px" fontWeight="600" color="#0a0a0a">Campus Tote</Text>
+              <Text fontFamily={FONT} fontSize="15px" fontWeight="700" color="#0a0a0a">€ 12.00</Text>
             </Flex>
-            <Text fontFamily={FONT} fontSize="13px" color={MUTED} mb="12px">Hand-painted, 4 left at the booth.</Text>
+            <Text fontFamily={FONT} fontSize="13px" color="#667085" mb="12px">Hand-painted, 4 left at the booth.</Text>
             <BunqQrPanel url="bunq.me/flashdrop/campus-tote" price="12.00" />
           </Box>
         </Box>
@@ -270,6 +326,7 @@ function LoginPage() {
 function DashboardPage() {
   const navigate                   = useNavigate();
   const sellerId                   = getSellerId();
+  const { dark, toggle }           = useTheme();
   const [listings, setListings]    = useState<Listing[]>([]);
   const [loading, setLoading]      = useState(true);
   const [loadError, setLoadError]  = useState("");
@@ -303,7 +360,7 @@ function DashboardPage() {
     <Box bg={BG} minH="100dvh" pb="120px">
       {/* Nav */}
       <Box
-        bg="white"
+        bg={CARD}
         borderBottom="1px solid"
         borderColor={BORDER}
         px={{ base: "16px", md: "40px" }}
@@ -332,16 +389,21 @@ function DashboardPage() {
             )}
           </Flex>
 
-          <Flex align="center" gap="12px" flexShrink={0}>
+          <Flex align="center" gap="8px" flexShrink={0}>
             <Flex
               display={{ base: "none", md: "flex" }}
               align="center" gap="6px"
               px="10px" h="28px"
-              bg="#f0fdf4" borderRadius="20px"
+              bg={SURFACE}
+              border="1px solid"
+              borderColor={BORDER}
+              borderRadius="20px"
             >
               <Box bg={G} borderRadius="full" h="6px" w="6px" flexShrink={0} />
-              <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color="#166534">bunq connected</Text>
+              <Text fontFamily={FONT} fontSize="11px" fontWeight="500" color={MUTED}>bunq connected</Text>
             </Flex>
+
+            <ThemeToggle dark={dark} toggle={toggle} />
 
             <Box
               as="button"
@@ -364,13 +426,13 @@ function DashboardPage() {
         {/* Stats */}
         <SimpleGrid columns={3} gap={{ base: "10px", md: "16px" }} mb={{ base: "24px", md: "32px" }}>
           {[
-            { label: "Live drops", value: liveCount, accent: G },
-            { label: "In stock", value: stockCount, accent: null },
-            { label: "Sold out", value: soldCount, accent: null },
-          ].map(({ label, value, accent }) => (
+            { label: "Live drops", value: liveCount },
+            { label: "In stock",   value: stockCount },
+            { label: "Sold out",   value: soldCount },
+          ].map(({ label, value }) => (
             <Box
               key={label}
-              bg="white"
+              bg={CARD}
               border="1px solid"
               borderColor={BORDER}
               borderRadius="12px"
@@ -383,7 +445,7 @@ function DashboardPage() {
                 fontFamily={FONT}
                 fontSize={{ base: "24px", md: "32px" }}
                 fontWeight="700"
-                color={accent ?? TEXT}
+                color={TEXT}
                 letterSpacing="-1px"
                 lineHeight={1}
               >
@@ -416,13 +478,12 @@ function DashboardPage() {
 
         {/* Grid */}
         {loading ? (
-          <Flex justify="center" py="80px"><Spinner color={G} size="xl" /></Flex>
+          <Flex justify="center" py="80px"><Spinner size="xl" /></Flex>
         ) : listings.length === 0 ? (
           <Box
-            bg="white" border="1px solid" borderColor={BORDER}
+            bg={CARD} border="1px solid" borderColor={BORDER}
             borderRadius="12px" p="64px 24px" textAlign="center"
           >
-            <Text fontFamily={FONT} fontSize="32px" mb="16px">📸</Text>
             <Text fontFamily={FONT} fontSize="16px" fontWeight="600" color={TEXT} mb="6px">No listings yet</Text>
             <Text fontFamily={FONT} fontSize="14px" color={MUTED}>Tap the button below to create your first drop.</Text>
           </Box>
@@ -451,7 +512,7 @@ function DashboardPage() {
           w="56px" h="56px"
           bg={DARK}
           borderRadius="50%"
-          color="white"
+          color={INK_FG}
           border="none"
           cursor="pointer"
           display="flex"
@@ -616,7 +677,7 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
   return (
     <Flex
       align="center"
-      bg="rgba(0,0,0,0.5)"
+      bg="rgba(0,0,0,0.55)"
       bottom={0} left={0} right={0} top={0}
       justify="center"
       p={{ base: "0", md: "24px" }}
@@ -625,7 +686,7 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
       style={{ backdropFilter: "blur(6px)" }}
     >
       <Box
-        bg="white"
+        bg={CARD}
         border={{ base: "none", md: "1px solid" }}
         borderColor={BORDER}
         borderRadius={{ base: "0", md: "16px" }}
@@ -633,7 +694,7 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
         maxW="1040px"
         maxH={{ base: "100dvh", md: "calc(100dvh - 48px)" }}
         overflow="auto"
-        boxShadow={{ md: "0 32px 64px rgba(0,0,0,0.2)" }}
+        boxShadow={{ md: "0 32px 64px rgba(0,0,0,0.24)" }}
       >
         {/* Header */}
         <Flex
@@ -646,7 +707,7 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
           gap="12px"
           position="sticky"
           top={0}
-          bg="white"
+          bg={CARD}
           zIndex={1}
         >
           <Flex align="center" gap="12px" flex={1} minW={0}>
@@ -659,11 +720,11 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
           <Box
             as="button"
             w="32px" h="32px" flexShrink={0}
-            bg="#f3f4f6" borderRadius="50%"
+            bg={SURFACE} borderRadius="50%"
             border="none" cursor="pointer"
             display="flex" alignItems="center" justifyContent="center"
             fontFamily={FONT} fontSize="18px" color={MUTED}
-            _hover={{ bg: "#e5e7eb" }}
+            _hover={{ bg: BORDER }}
             onClick={onClose}
           >
             ×
@@ -683,7 +744,7 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
           >
             {/* Camera view */}
             <Box
-              bg={DARK}
+              bg={PANEL}
               borderRadius="10px"
               overflow="hidden"
               position="relative"
@@ -696,7 +757,6 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
                   style={{ background: "#111", display: "block", height: "min(380px, 50vh)", objectFit: "cover", width: "100%" }}
                 />
               )}
-              {/* Camera status chip */}
               <Box position="absolute" bottom="10px" left="10px">
                 <Box
                   bg="rgba(0,0,0,0.55)" borderRadius="20px" px="10px" py="4px"
@@ -727,10 +787,10 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
               <Box
                 as="button"
                 h="38px" px="16px"
-                bg={isRecording ? "#fef2f2" : "white"}
-                color={isRecording ? "#dc2626" : TEXT}
+                bg={isRecording ? "rgba(220,38,38,0.08)" : CARD}
+                color={isRecording ? "#ef4444" : TEXT}
                 border="1px solid"
-                borderColor={isRecording ? "#fecaca" : BORDER}
+                borderColor={isRecording ? "rgba(220,38,38,0.3)" : BORDER}
                 borderRadius="8px"
                 fontFamily={FONT} fontSize="13px" fontWeight="500"
                 cursor="pointer"
@@ -744,9 +804,9 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
 
             {/* Waveform */}
             <Box
-              bg={isRecording ? "#f0fdf4" : "#f9fafb"}
+              bg={isRecording ? "rgba(0,213,75,0.06)" : SURFACE}
               border="1px solid"
-              borderColor={isRecording ? "#bbf7d0" : BORDER}
+              borderColor={isRecording ? "rgba(0,213,75,0.2)" : BORDER}
               borderRadius="10px"
               p="16px"
               transition="all 250ms ease"
@@ -770,7 +830,7 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
               </Text>
               <Textarea
                 fontFamily={FONT} fontSize="14px" color={TEXT}
-                bg="white" border="1px solid" borderColor={BORDER}
+                bg={CARD} border="1px solid" borderColor={BORDER}
                 borderRadius="8px" p="12px" minH="100px" resize="none"
                 placeholder="Describe the item — what it is, why someone should buy it, price hint…"
                 value={draft.prompt}
@@ -816,7 +876,7 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
                 <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.06em" mb="6px">Description</Text>
                 <Textarea
                   fontFamily={FONT} fontSize="14px" color={TEXT}
-                  bg="white" border="1px solid" borderColor={BORDER}
+                  bg={CARD} border="1px solid" borderColor={BORDER}
                   borderRadius="8px" p="12px" minH="80px" resize="none"
                   value={draft.description}
                   onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
@@ -832,16 +892,15 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
 
             <Box
               as="button"
-              {...btnGreen}
+              {...btnPrimary}
               h="48px" mt="auto"
               fontSize="14px"
               opacity={isPosting || !canGenerate ? 0.6 : 1}
               cursor={isPosting || !canGenerate ? "not-allowed" : "pointer"}
               onClick={!isPosting && canGenerate ? postListing : undefined}
               gap="8px"
-              boxShadow="0 4px 16px rgba(0,213,75,0.3)"
             >
-              {isPosting ? <Spinner size="xs" color="black" /> : null}
+              {isPosting ? <Spinner size="xs" /> : null}
               {isPosting ? "Publishing…" : "Publish to bunq"}
               {!isPosting && <IconArrow />}
             </Box>

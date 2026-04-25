@@ -1,5 +1,5 @@
 import { Box, Flex, Text } from "@chakra-ui/react";
-import { G, FONT } from "../theme/tokens";
+import { G, BORDER, FONT } from "../theme/tokens";
 
 const BARS = [20, 32, 44, 28, 52, 36, 24, 48, 34, 20, 40, 30, 46, 26];
 
@@ -11,7 +11,7 @@ export function VoiceWave({ active }: { active: boolean }) {
           <Box
             key={i}
             className={active ? "voice-bar" : undefined}
-            bg={active ? G : "#e5e7eb"}
+            bg={active ? G : BORDER}
             borderRadius="2px"
             w="3px"
             h={active ? `${h}px` : "4px"}

@@ -1,5 +1,5 @@
 import { Box, Flex, QrCode, Text } from "@chakra-ui/react";
-import { DARK, G, FONT } from "../theme/tokens";
+import { PANEL, G, FONT } from "../theme/tokens";
 
 function fmt(price: string) {
   const n = Number(price);
@@ -9,7 +9,7 @@ function fmt(price: string) {
 export function BunqQrPanel({ url, price }: { url: string; price: string }) {
   return (
     <Flex
-      bg={DARK}
+      bg={PANEL}
       borderRadius="10px"
       align="center"
       gap="14px"

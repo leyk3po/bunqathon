@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
-import { G, FONT } from "../theme/tokens";
+import { G, CARD, TEXT, MUTED, FONT } from "../theme/tokens";
 
 export type CelebrationData = { title: string; amount: string };
 
@@ -23,13 +23,13 @@ export function PaymentCelebration({ data, onDone }: { data: CelebrationData; on
       p={4}
     >
       <Box
-        bg="white"
+        bg={CARD}
         borderRadius="16px"
         p="40px"
         textAlign="center"
         maxW="340px"
         w="full"
-        boxShadow="0 32px 64px rgba(0,0,0,0.24)"
+        boxShadow="0 32px 64px rgba(0,0,0,0.36)"
       >
         <Box
           w="56px" h="56px" bg={G} borderRadius="50%"
@@ -40,13 +40,13 @@ export function PaymentCelebration({ data, onDone }: { data: CelebrationData; on
             <path d="M5 12l5 5L19 7" stroke="black" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </Box>
-        <Text fontFamily={FONT} fontSize="20px" fontWeight="700" color="black" letterSpacing="-0.3px">
+        <Text fontFamily={FONT} fontSize="20px" fontWeight="700" color={TEXT} letterSpacing="-0.3px">
           Payment received
         </Text>
-        <Text fontFamily={FONT} fontSize="28px" fontWeight="700" color="black" mt="8px" letterSpacing="-0.5px">
+        <Text fontFamily={FONT} fontSize="28px" fontWeight="700" color={TEXT} mt="8px" letterSpacing="-0.5px">
           {data.amount}
         </Text>
-        <Text fontFamily={FONT} fontSize="14px" color="#667085" mt="6px">
+        <Text fontFamily={FONT} fontSize="14px" color={MUTED} mt="6px">
           {data.title}
         </Text>
       </Box>

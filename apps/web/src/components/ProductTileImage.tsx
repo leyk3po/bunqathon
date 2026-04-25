@@ -1,5 +1,5 @@
 import { Box, Flex, Image, Text } from "@chakra-ui/react";
-import { DARK, G, FONT } from "../theme/tokens";
+import { PANEL, G, FONT } from "../theme/tokens";
 
 export function ProductTileImage({ imageUrl, title }: { imageUrl?: string; title: string }) {
   if (imageUrl) {
@@ -18,7 +18,7 @@ export function ProductTileImage({ imageUrl, title }: { imageUrl?: string; title
   return (
     <Flex
       align="center"
-      bg={DARK}
+      bg={PANEL}
       borderRadius="8px"
       color="white"
       h="200px"
@@ -26,7 +26,6 @@ export function ProductTileImage({ imageUrl, title }: { imageUrl?: string; title
       overflow="hidden"
       position="relative"
     >
-      {/* Subtle grid pattern */}
       <Box
         position="absolute"
         inset={0}

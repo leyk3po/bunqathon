@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Box, Flex, Grid, Text, Textarea } from "@chakra-ui/react";
 import { api, centsFromEuros } from "../api";
-import { G, DARK, BORDER, TEXT, MUTED, FONT } from "../theme/tokens";
+import { G, DARK, INK_FG, CARD, SURFACE, BORDER, TEXT, MUTED, FONT } from "../theme/tokens";
 import { BunqQrPanel } from "./BunqQrPanel";
 import type { Listing } from "./ListingCard";
 
@@ -20,7 +20,7 @@ const inputStyle = {
   fontFamily: FONT,
   fontSize: "14px",
   color: TEXT,
-  bg: "white",
+  bg: CARD,
   border: "1px solid",
   borderColor: BORDER,
   borderRadius: "8px",
@@ -66,7 +66,7 @@ export function EditModal({ listing, onClose, onSave }: {
   return (
     <Flex
       align="center"
-      bg="rgba(0,0,0,0.45)"
+      bg="rgba(0,0,0,0.5)"
       bottom={0} left={0} right={0} top={0}
       justify="center"
       p={{ base: 3, md: 6 }}
@@ -76,13 +76,13 @@ export function EditModal({ listing, onClose, onSave }: {
       style={{ backdropFilter: "blur(4px)" }}
     >
       <Box
-        bg="white"
+        bg={CARD}
         border="1px solid"
         borderColor={BORDER}
         borderRadius="16px"
         maxW="500px"
         w="full"
-        boxShadow="0 24px 48px rgba(0,0,0,0.14)"
+        boxShadow="0 24px 48px rgba(0,0,0,0.2)"
         onClick={(e) => e.stopPropagation()}
         maxH="calc(100dvh - 32px)"
         overflow="auto"
@@ -111,12 +111,12 @@ export function EditModal({ listing, onClose, onSave }: {
             flexShrink={0}
             w="32px" h="32px"
             borderRadius="50%"
-            bg="#f3f4f6"
+            bg={SURFACE}
             display="flex"
             alignItems="center"
             justifyContent="center"
             cursor="pointer"
-            _hover={{ bg: "#e5e7eb" }}
+            _hover={{ bg: BORDER }}
             border="none"
             fontFamily={FONT}
             fontSize="16px"
@@ -188,7 +188,7 @@ export function EditModal({ listing, onClose, onSave }: {
               flex={1}
               h="44px"
               bg={DARK}
-              color="white"
+              color={INK_FG}
               borderRadius="8px"
               fontFamily={FONT}
               fontSize="14px"
@@ -209,7 +209,7 @@ export function EditModal({ listing, onClose, onSave }: {
               flexShrink={0}
               h="44px"
               px="20px"
-              bg="white"
+              bg={CARD}
               color={TEXT}
               borderRadius="8px"
               fontFamily={FONT}
@@ -218,7 +218,7 @@ export function EditModal({ listing, onClose, onSave }: {
               cursor="pointer"
               border="1px solid"
               borderColor={BORDER}
-              _hover={{ bg: "#f9fafb" }}
+              _hover={{ bg: SURFACE }}
               display="flex"
               alignItems="center"
               justifyContent="center"

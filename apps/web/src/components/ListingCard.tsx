@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { api, eurosFromCents } from "../api";
-import { G, BORDER, TEXT, MUTED, FONT } from "../theme/tokens";
+import { G, CARD, BORDER, TEXT, MUTED, FONT } from "../theme/tokens";
 import { ProductTileImage } from "./ProductTileImage";
 import { BunqQrPanel } from "./BunqQrPanel";
 import type { CelebrationData } from "./PaymentCelebration";
@@ -72,20 +72,19 @@ export function ListingCard({
 
   return (
     <Box
-      bg="white"
+      bg={CARD}
       border="1px solid"
       borderColor={BORDER}
       borderRadius="12px"
       overflow="hidden"
       cursor="pointer"
       onClick={onEdit}
-      _hover={{ borderColor: "#c5c8cf", boxShadow: "0 4px 16px rgba(0,0,0,0.06)" }}
+      _hover={{ borderColor: "var(--c-muted)", boxShadow: "0 4px 16px rgba(0,0,0,0.08)" }}
       transition="all 180ms ease"
     >
       {/* Image */}
       <Box position="relative">
         <ProductTileImage imageUrl={listing.imageUrl} title={listing.title} />
-        {/* Status indicator top-right */}
         <Box position="absolute" top="10px" right="10px">
           {isLive ? (
             <Flex align="center" gap="5px" bg="white" borderRadius="20px" px="8px" py="4px" boxShadow="0 1px 4px rgba(0,0,0,0.12)">
@@ -114,7 +113,6 @@ export function ListingCard({
 
       {/* Content */}
       <Box p="16px">
-        {/* Title row */}
         <Flex align="baseline" justify="space-between" gap="8px" mb="4px">
           <Text
             fontFamily={FONT}
@@ -135,7 +133,6 @@ export function ListingCard({
           </Text>
         </Flex>
 
-        {/* Description */}
         <Text
           fontFamily={FONT}
           fontSize="13px"
@@ -148,14 +145,12 @@ export function ListingCard({
           {listing.description || "No description yet."}
         </Text>
 
-        {/* Stock + time row */}
         <Flex align="center" justify="space-between" mb={listing.bunqTabUrl ? "12px" : 0}>
           <Text fontFamily={FONT} fontSize="12px" color={MUTED}>
             {listing.stock} in stock · {listing.createdAt}
           </Text>
         </Flex>
 
-        {/* bunq QR */}
         {listing.bunqTabUrl && <BunqQrPanel url={listing.bunqTabUrl} price={listing.price} />}
       </Box>
     </Box>
