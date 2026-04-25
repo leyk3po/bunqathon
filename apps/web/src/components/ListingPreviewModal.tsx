@@ -99,6 +99,33 @@ export function ListingPreviewModal({
           {isLive && (
             <Box mt="18px">
               <BunqQrPanel url={buyerUrl} price={listing.price} bunqUrl={listing.bunqTabUrl} />
+              <Box
+                as="a"
+                {...{ href: buyerUrl, target: "_blank", rel: "noreferrer" } as any}
+                display="inline-flex"
+                alignItems="center"
+                justifyContent="center"
+                gap="8px"
+                mt="12px"
+                w="full"
+                h="44px"
+                bg={TEXT}
+                color={CARD}
+                borderRadius="10px"
+                fontFamily={FONT}
+                fontSize="13px"
+                fontWeight="700"
+                letterSpacing="0.04em"
+                textTransform="uppercase"
+                cursor="pointer"
+                _hover={{ opacity: 0.85 }}
+                transition="opacity 150ms ease"
+              >
+                Open buyer page <Box as="span">↗</Box>
+              </Box>
+              <Text fontFamily={FONT} fontSize="11px" color={MUTED} mt="8px" textAlign="center">
+                Test the buyer flow — haggle, pay, watch your dashboard update.
+              </Text>
             </Box>
           )}
         </Box>

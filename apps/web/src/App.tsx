@@ -501,12 +501,11 @@ function DashboardPage() {
   }, [sellerId]);
 
   const updateListing = useCallback((id: string, u: Partial<Listing>) => {
-    setListings((cur) =>
-      cur
-        .map((l) => l.id === id ? { ...l, ...u } : l)
-        .filter((l) => listingMatchesFilter(l, activeStatuses))
-    );
-  }, [activeStatuses]);
+    // Keep the listing visible after a state change so the seller can SEE
+    // it transition to sold_out instead of having it vanish from the grid.
+    // (Re-fetching or changing filters will reapply the filter.)
+    setListings((cur) => cur.map((l) => l.id === id ? { ...l, ...u } : l));
+  }, []);
 
   const toggleStatus = useCallback((value: DropStatusFilter) => {
     setActiveStatuses((current) =>
