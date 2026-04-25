@@ -65,4 +65,5 @@ def _snapshot_payload(drop: Drop) -> dict:
         "currency": drop.currency,
         "bunq_tab_url": drop.bunq_tab_url,
         "media_url": drop.media_url,
+        "expires_at": drop.expires_at.isoformat() if drop.expires_at else None,
     }

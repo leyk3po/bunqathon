@@ -14,6 +14,7 @@ from app.core.config import settings
 from app.drops.models import Drop, DropState, EventLog, EventSource, Payment, PaymentStatus
 from app.drops.schemas import DropCreate, DropUpdate
 from app.integrations import bunq
+from app.drops.models import _utcnow
 
 _SLUG_SAFE = re.compile(r"[^a-z0-9]+")
 _ARCHIVABLE_STATES = {
@@ -68,6 +69,8 @@ def unique_slug(db: Session, title: str, requested: str | None) -> str:
 
 
 def create_drop(db: Session, payload: DropCreate) -> Drop:
+    if payload.expires_at is not None and payload.expires_at <= _utcnow():
+        raise DropInvalid("expires_at must be in the future")
     slug = unique_slug(db, payload.title, payload.slug)
     drop = Drop(
         slug=slug,
@@ -119,7 +122,10 @@ def list_drops(
         stmt = stmt.where(Drop.state.in_(state_filters))
     if seller_id is not None:
         stmt = stmt.where(Drop.seller_id == seller_id)
-    return list(db.scalars(stmt).all())
+    drops = list(db.scalars(stmt).all())
+    for drop in drops:
+        _apply_expiration(db, drop)
+    return drops
 
 
 def list_events_for_drop(db: Session, slug: str, limit: int = 100) -> list[EventLog]:
@@ -137,6 +143,7 @@ def get_by_slug(db: Session, slug: str) -> Drop:
     drop = db.scalar(select(Drop).where(Drop.slug == slug))
     if drop is None:
         raise DropNotFound("drop not found")
+    _apply_expiration(db, drop)
     return drop
 
 
@@ -144,6 +151,7 @@ def get_by_id(db: Session, drop_id: str) -> Drop:
     drop = db.get(Drop, drop_id)
     if drop is None:
         raise DropNotFound("drop not found")
+    _apply_expiration(db, drop)
     return drop
 
 
@@ -159,6 +167,8 @@ def update_drop(db: Session, drop_id: str, payload: DropUpdate) -> Drop:
     data = payload.model_dump(exclude_unset=True)
     if "currency" in data and data["currency"]:
         data["currency"] = data["currency"].upper()
+    if "expires_at" in data and data["expires_at"] is not None and data["expires_at"] <= _utcnow():
+        raise DropInvalid("expires_at must be in the future")
     for key, value in data.items():
         setattr(drop, key, value)
 
@@ -183,6 +193,8 @@ def publish_drop(db: Session, drop_id: str) -> Drop:
         raise DropInvalid("price must be > 0 before publishing")
     if drop.inventory <= 0:
         raise DropInvalid("inventory must be > 0 before publishing")
+    if drop.expires_at is not None and drop.expires_at <= _utcnow():
+        raise DropInvalid("cannot publish a drop whose end time has already passed")
 
     tab = bunq.create_bunqme_tab(
         amount_cents=drop.price_cents,
@@ -195,7 +207,6 @@ def publish_drop(db: Session, drop_id: str) -> Drop:
     drop.bunq_tab_uuid = tab.uuid
     drop.bunq_tab_reference = tab.payment_reference
     if drop.expires_at is None and drop.duration_minutes:
-        from app.drops.models import _utcnow
         drop.expires_at = _utcnow() + timedelta(minutes=drop.duration_minutes)
     record_event(
         db,
@@ -219,6 +230,7 @@ def publish_drop(db: Session, drop_id: str) -> Drop:
             "type": "published",
             "state": drop.state.value,
             "bunq_tab_url": drop.bunq_tab_url,
+            "expires_at": drop.expires_at.isoformat() if drop.expires_at else None,
         },
     )
     return drop
@@ -229,6 +241,7 @@ def mock_payment_for_drop(db: Session, drop_id: str) -> Drop:
         raise DropConflict("mock payment is only available when BUNQ_SANDBOX=true")
 
     drop = get_by_id(db, drop_id)
+    _ensure_sellable(drop)
     if not drop.bunq_tab_reference:
         raise DropConflict("drop has no bunq payment to mock")
 
@@ -294,6 +307,8 @@ def apply_payment_event(
         raise DropNotFound("drop missing")
     if drop.bunq_tab_reference is None:
         raise DropNotFound("payment not found for reference")
+    _apply_expiration(db, drop)
+    _ensure_sellable(drop)
 
     if webhook_payload is not None:
         if webhook_event_id:
@@ -386,3 +401,46 @@ def _sync_active_state(drop: Drop) -> None:
     if drop.state in (DropState.draft, DropState.archived):
         return
     drop.state = _sellable_state_for(drop)
+
+
+def _ensure_sellable(drop: Drop) -> None:
+    expires_at = _coerce_utc(drop.expires_at)
+    if drop.state == DropState.archived:
+        if expires_at is not None and expires_at <= _utcnow():
+            raise DropConflict("drop has expired")
+        raise DropConflict("drop is archived")
+
+
+def _apply_expiration(db: Session, drop: Drop) -> None:
+    expires_at = _coerce_utc(drop.expires_at)
+    if expires_at is None or drop.state == DropState.archived:
+        return
+    if expires_at > _utcnow():
+        return
+    drop.expires_at = expires_at
+    drop.state = DropState.archived
+    record_event(
+        db,
+        event_type="drop.expired",
+        source=EventSource.system,
+        drop=drop,
+        payload={"state": drop.state.value, "expires_at": expires_at.isoformat()},
+    )
+    db.commit()
+    db.refresh(drop)
+    events.publish(
+        drop.slug,
+        {
+            "type": "state_changed",
+            "state": drop.state.value,
+            "expires_at": expires_at.isoformat(),
+        },
+    )
+
+
+def _coerce_utc(value):
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=_utcnow().tzinfo)
+    return value

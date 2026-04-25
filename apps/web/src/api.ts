@@ -67,6 +67,7 @@ export type GeneratePreviewResponse = {
   description: string;
   price_cents: number;
   currency: string;
+  inventory: number;
 };
 
 export type SellerPublic = {
@@ -216,7 +217,7 @@ export const api = {
 
   getDrop: (slug: string): Promise<DropDetail> => request<DropDetail>(`/drops/${encodeURIComponent(slug)}`),
 
-  updateDrop: (id: string, payload: Partial<{ title: string; description: string; pitch: string | null; price_cents: number; currency: string; inventory: number; media_url: string | null }>): Promise<DropDetail> =>
+  updateDrop: (id: string, payload: Partial<{ title: string; description: string; pitch: string | null; price_cents: number; currency: string; inventory: number; media_url: string | null; expires_at: string | null }>): Promise<DropDetail> =>
     request<DropDetail>(`/drops/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(payload) }),
 
   publish: (id: string): Promise<DropDetail> =>

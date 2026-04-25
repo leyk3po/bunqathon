@@ -62,6 +62,14 @@ class DropUpdate(BaseModel):
     currency: str | None = Field(default=None, min_length=3, max_length=3)
     inventory: int | None = Field(default=None, ge=0)
     media_url: str | None = None
+    expires_at: datetime | None = None
+
+    @field_validator("expires_at", mode="before")
+    @classmethod
+    def _ensure_update_tz(cls, v: object) -> object:
+        if isinstance(v, datetime) and v.tzinfo is None:
+            return v.replace(tzinfo=timezone.utc)
+        return v
 
 
 class PaymentPublic(BaseModel):
@@ -143,3 +151,4 @@ class GeneratePreviewResponse(BaseModel):
     description: str
     price_cents: int
     currency: str
+    inventory: int

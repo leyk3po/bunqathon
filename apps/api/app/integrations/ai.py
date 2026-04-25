@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import mimetypes
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -20,6 +21,7 @@ class Generated:
     description: str
     price_cents: int
     currency: str = "EUR"
+    inventory: int = 1
 
 
 class AIError(Exception):
@@ -47,11 +49,34 @@ _OUTPUT_SCHEMA = {
         "description": {"type": "string", "minLength": 1, "maxLength": 300},
         "price_cents": {"type": "integer", "minimum": 100, "maximum": 500000},
         "currency": {"type": "string", "enum": ["EUR"]},
+        "inventory": {"type": "integer", "minimum": 1, "maximum": 10000},
     },
-    "required": ["title", "description", "price_cents", "currency"],
+    "required": ["title", "description", "price_cents", "currency", "inventory"],
     "additionalProperties": False,
 }
 _PROMPT_SCHEMA_TEXT = json.dumps(_OUTPUT_SCHEMA, indent=2)
+_NUMBER_WORDS = {
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+    "twenty": 20,
+}
 
 
 def generate_drop_copy(pitch: str, media_url: str | None = None) -> Generated:
@@ -68,6 +93,19 @@ def _anthropic_generate_drop_copy(pitch: str, media_url: str | None = None) -> G
     if image_block is not None:
         content.append(image_block)
 
+    inventory_hint = _infer_inventory_hint(pitch)
+    separate_units_hint = _mentions_separate_units(pitch)
+    inventory_instruction = ""
+    if inventory_hint is not None:
+        inventory_instruction = (
+            f"\nDetected seller stock hint: {inventory_hint} separate sellable units."
+            " Treat that as inventory, not as one bundle listing."
+        )
+    if separate_units_hint:
+        inventory_instruction += (
+            "\nThe seller explicitly wants multiple separate items, not a bundle, pack, set, or lot."
+        )
+
     content.append(
         {
             "type": "text",
@@ -75,10 +113,13 @@ def _anthropic_generate_drop_copy(pitch: str, media_url: str | None = None) -> G
                 "You are generating copy for a pop-up storefront called FlashDrop.\n"
                 "Write sharp, concise, seller-friendly output for a real-world item.\n"
                 "The response must fit a fast mobile storefront.\n"
+                "If the seller mentions having multiple identical items in stock, write the listing for one unit and put the quantity into inventory.\n"
+                "Do not turn multiple identical units into a bundle unless the seller explicitly says bundle, pack, case, set, or lot.\n"
                 "Return JSON only. Do not wrap it in markdown fences.\n"
                 "Use this JSON schema exactly:\n"
                 f"{_PROMPT_SCHEMA_TEXT}\n\n"
                 f"Seller pitch:\n{(pitch or '').strip() or 'No pitch provided.'}"
+                f"{inventory_instruction}"
             ),
         }
     )
@@ -119,11 +160,15 @@ def _anthropic_generate_drop_copy(pitch: str, media_url: str | None = None) -> G
     try:
         text_output = _extract_text(payload)
         parsed = json.loads(_extract_json_object(text_output))
+        generated_inventory = int(parsed["inventory"])
+        if inventory_hint is not None:
+            generated_inventory = inventory_hint
         return Generated(
             title=str(parsed["title"]).strip()[:80],
             description=str(parsed["description"]).strip()[:300],
             price_cents=int(parsed["price_cents"]),
             currency=str(parsed["currency"]).upper(),
+            inventory=max(1, generated_inventory),
         )
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         raise AIUpstreamError("Anthropic response could not be parsed into preview JSON") from exc
@@ -182,4 +227,42 @@ def _image_content_block(media_url: str | None) -> dict[str, Any] | None:
             },
         }
 
+    return None
+
+
+def _mentions_separate_units(pitch: str) -> bool:
+    lower = pitch.lower()
+    markers = (
+        "separate item",
+        "separate items",
+        "separate unit",
+        "separate units",
+        "not as one",
+        "not one go",
+        "not a bundle",
+        "not bundle",
+        "individually",
+        "one each",
+    )
+    return any(marker in lower for marker in markers)
+
+
+def _infer_inventory_hint(pitch: str) -> int | None:
+    normalized = pitch.lower()
+    for word, value in _NUMBER_WORDS.items():
+        normalized = re.sub(rf"\b{word}\b", str(value), normalized)
+
+    patterns = (
+        r"\bi have\s+(\d{1,4})\b",
+        r"\bwe have\s+(\d{1,4})\b",
+        r"\bthere (?:is|are)\s+(\d{1,4})\b",
+        r"\bonly\s+(\d{1,4})\s+(?:left|available|remaining)\b",
+        r"\b(\d{1,4})\s+(?:left|available|remaining|in stock)\b",
+        r"\b(\d{1,4})\s+(?:separate|individual)\s+(?:items|units|cans|bottles|pieces)\b",
+        r"\bsell them as\s+(\d{1,4})\s+separate\b",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, normalized)
+        if match:
+            return max(1, int(match.group(1)))
     return None

@@ -78,6 +78,7 @@ function dropToListing(drop: DropPublic): Listing {
     imageUrl: drop.media_url ?? "", prompt: "", status, state: drop.state,
     createdAt: new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(drop.created_at)),
     bunqTabUrl: drop.bunq_tab_url,
+    expiresAt: drop.expires_at ?? undefined,
   };
 }
 
@@ -859,7 +860,13 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
       const mediaUrl = await ensureUploaded();
       const pitch = draft.prompt.trim() || "Limited drop, available now.";
       const preview = await api.generatePreview(pitch, mediaUrl);
-      setDraft((d) => ({ ...d, title: preview.title, description: preview.description, price: eurosFromCents(preview.price_cents) }));
+      setDraft((d) => ({
+        ...d,
+        title: preview.title,
+        description: preview.description,
+        price: eurosFromCents(preview.price_cents),
+        stock: preview.inventory,
+      }));
     } catch {
       setApiError("AI unavailable — fill in the details below.");
       setDraft((d) => makeLocalDraft(d));
@@ -1270,6 +1277,7 @@ function LiveWallPage() {
           currency: data.currency ?? current.currency,
           media_url: data.media_url ?? current.media_url,
           bunq_tab_url: data.bunq_tab_url ?? current.bunq_tab_url,
+          expires_at: ("expires_at" in data ? data.expires_at ?? null : current.expires_at),
         } : current);
       } catch {
         // ignore malformed SSE snapshot payloads
