@@ -308,8 +308,14 @@ a {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes page-fade {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 .login-logo-in { animation: fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 0.05s; }
 .login-card-in { animation: fade-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 0.12s; }
+.page-enter    { animation: page-fade 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
 
 /* ─────────────────────────────────────────────────
    Voice waveform
