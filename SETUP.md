@@ -65,6 +65,15 @@ VITE_API_BASE_URL=http://localhost:8000
 
 The backend is a FastAPI app.
 
+### Important migration note
+
+The backend now uses Alembic migrations for schema management.
+
+That means:
+
+- the app no longer creates tables automatically on startup
+- after setting up the backend environment, run the migration command before using drop or payment endpoints
+
 ### Backend env
 
 From `apps/api`:
@@ -95,6 +104,7 @@ python -m venv .venv
 source .venv/Scripts/activate
 pip install -r requirements.txt
 cp .env.example .env
+python -m alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
@@ -115,8 +125,35 @@ python -m venv .venv
 . .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 Copy-Item .env.example .env
+python -m alembic upgrade head
 uvicorn app.main:app --reload
 ```
+
+## Database migrations
+
+Run these from `apps/api`.
+
+### Apply migrations
+
+```bash
+python -m alembic upgrade head
+```
+
+### Create a new migration
+
+```bash
+python -m alembic revision --autogenerate -m "describe change"
+```
+
+### Roll back one migration
+
+```bash
+python -m alembic downgrade -1
+```
+
+Migration files live in:
+
+- `apps/api/alembic/versions`
 
 ## Why `Activate.ps1` failed in Git Bash
 
@@ -218,8 +255,9 @@ Use this when you want backend persistence work to begin:
 
 1. Run `docker compose up -d db` from the repo root
 2. Set `DATABASE_URL` in `apps/api/.env`
-3. Start or restart the backend
-4. Check `http://127.0.0.1:8000/health/database`
+3. Run `python -m alembic upgrade head`
+4. Start or restart the backend
+5. Check `http://127.0.0.1:8000/api/v1/health/database`
 
 ## Root scripts
 
@@ -290,5 +328,5 @@ python -m pip install --upgrade pip
 - Frontend: `http://localhost:5173`
 - API root: `http://127.0.0.1:8000/`
 - API docs: `http://127.0.0.1:8000/docs`
-- API health: `http://127.0.0.1:8000/health`
-- API DB health: `http://127.0.0.1:8000/health/database`
+- API health: `http://127.0.0.1:8000/api/v1/health`
+- API DB health: `http://127.0.0.1:8000/api/v1/health/database`

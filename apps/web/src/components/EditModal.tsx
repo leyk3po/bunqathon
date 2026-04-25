@@ -1,0 +1,430 @@
+import { useState } from "react";
+import { Box, Flex, Grid, Text, Textarea } from "@chakra-ui/react";
+import { api, buyerCheckoutUrl, centsFromEuros, liveWallUrl, type DropState, eurosFromCents } from "../api";
+import { DARK, INK_FG, CARD, SURFACE, BORDER, TEXT, MUTED, FONT } from "../theme/tokens";
+import { BunqQrPanel } from "./BunqQrPanel";
+import type { Listing } from "./ListingCard";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <Box>
+      <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.06em" mb="6px">
+        {label}
+      </Text>
+      {children}
+    </Box>
+  );
+}
+
+const inputStyle = {
+  fontFamily: FONT,
+  fontSize: "14px",
+  color: TEXT,
+  bg: CARD,
+  border: "1px solid",
+  borderColor: BORDER,
+  borderRadius: "8px",
+  px: "12px",
+  py: "10px",
+  h: "42px",
+  w: "full",
+  outline: "none",
+  _focus: { borderColor: DARK, boxShadow: "none", outline: "none" },
+  _focusVisible: { borderColor: DARK, boxShadow: "none", outline: "none" },
+} as const;
+
+function stateLabel(state: DropState | undefined): string {
+  switch (state) {
+    case "live": return "Live";
+    case "sold_out": return "Sold out";
+    case "archived": return "Archived";
+    default: return "Draft";
+  }
+}
+
+export function EditModal({
+  listing,
+  onClose,
+  onSave,
+  onArchive,
+  onUnarchive,
+  onDelete,
+}: {
+  listing: Listing;
+  onClose: () => void;
+  onSave: (u: Partial<Listing>) => void;
+  onArchive: () => void;
+  onUnarchive: (u: Partial<Listing>) => void;
+  onDelete: () => void;
+}) {
+  const [title, setTitle] = useState(listing.title);
+  const [description, setDesc] = useState(listing.description);
+  const [price, setPrice] = useState(listing.price);
+  const [floorPrice, setFloorPrice] = useState(listing.floorPrice ?? "");
+  const [stock, setStock] = useState(listing.stock);
+  const [saving, setSaving] = useState(false);
+  const [acting, setActing] = useState(false);
+  const [error, setError] = useState("");
+
+  const state = listing.state;
+
+  const handleSave = async () => {
+    setSaving(true); setError("");
+    try {
+      const floorCents = floorPrice.trim() ? centsFromEuros(floorPrice) : null;
+      await api.updateDrop(listing.id, {
+        title: title.trim() || listing.title,
+        description: description.trim(),
+        price_cents: centsFromEuros(price),
+        floor_price_cents: floorCents,
+        inventory: Math.max(0, stock),
+      });
+      onSave({ title, description, price, floorPrice: floorPrice.trim() || undefined, stock });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const runAction = async (fn: () => Promise<unknown>, update: Partial<Listing>) => {
+    setActing(true); setError("");
+    try {
+      await fn();
+      onSave(update);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Action failed");
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    setActing(true); setError("");
+    try {
+      await api.archive(listing.id);
+      onArchive();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Archive failed");
+      setActing(false);
+    }
+  };
+
+  const handleUnarchive = async () => {
+    setActing(true); setError("");
+    try {
+      const fresh = await api.unarchive(listing.id);
+      onUnarchive({
+        state: fresh.state,
+        status: fresh.state === "live" ? "live" : "draft",
+        price: eurosFromCents(fresh.price_cents),
+        stock: fresh.inventory,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unarchive failed");
+      setActing(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Delete "${listing.title}"? This cannot be undone.`)) return;
+    setActing(true); setError("");
+    try {
+      await api.deleteDrop(listing.id);
+      onDelete();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+      setActing(false);
+    }
+  };
+
+  const busy = saving || acting;
+
+  type Action = { label: string; fn: () => void } | null;
+  const primaryAction: Action =
+    state === "draft"
+      ? { label: "Publish now", fn: () => runAction(() => api.publish(listing.id), { state: "live", status: "live" }) }
+    : null;
+
+  return (
+    <Flex
+      align="center"
+      bg="rgba(0,0,0,0.5)"
+      bottom={0} left={0} right={0} top={0}
+      justify="center"
+      p={{ base: 3, md: 6 }}
+      position="fixed"
+      zIndex={40}
+      onClick={onClose}
+      style={{ backdropFilter: "blur(4px)" }}
+    >
+      <Box
+        bg={CARD}
+        border="1px solid"
+        borderColor={BORDER}
+        boxShadow="0 8px 40px rgba(0,0,0,0.18)"
+        borderRadius="16px"
+        maxW="500px"
+        w="full"
+        onClick={((e: React.MouseEvent) => e.stopPropagation()) as any}
+        maxH="calc(100dvh - 32px)"
+        overflow="auto"
+      >
+        <Flex
+          align="center"
+          justify="space-between"
+          px="24px"
+          py="20px"
+          borderBottom="1px solid"
+          borderColor={BORDER}
+          gap="12px"
+        >
+          <Box flex={1} minW={0}>
+            <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.06em" mb="2px">
+              {stateLabel(state)} · Edit listing
+            </Text>
+            <Text fontFamily={FONT} fontSize="17px" fontWeight="600" color={TEXT} letterSpacing="-0.3px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+              {listing.title}
+            </Text>
+          </Box>
+          <Box
+            as="button"
+            onClick={onClose}
+            flexShrink={0}
+            w="32px" h="32px"
+            borderRadius="50%"
+            bg={SURFACE}
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            cursor="pointer"
+            _hover={{ bg: BORDER }}
+            border="none"
+            fontFamily={FONT}
+            fontSize="16px"
+            color={MUTED}
+          >
+            ×
+          </Box>
+        </Flex>
+
+        <Box p="24px">
+          {listing.bunqTabUrl && (
+            <Box mb="20px">
+              <BunqQrPanel
+                url={buyerCheckoutUrl(listing.slug)}
+                price={listing.price}
+                bunqUrl={listing.bunqTabUrl}
+              />
+            </Box>
+          )}
+
+          {listing.bunqTabUrl && (
+            <Box
+              as="button"
+              w="full"
+              h="40px"
+              mb="12px"
+              bg="rgba(0,0,0,0.88)"
+              color="white"
+              borderRadius="10px"
+              fontFamily={FONT}
+              fontSize="13px"
+              fontWeight="600"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              cursor="pointer"
+              border="none"
+              onClick={() => window.open(liveWallUrl(listing.slug), "_blank", "noopener,noreferrer")}
+            >
+              Open live wall
+            </Box>
+          )}
+
+          <Text fontFamily={FONT} fontSize="12px" color={MUTED} mb="16px" lineHeight="1.5">
+            Buyers scan this QR to open the mocked sandbox checkout on their phone. Completing that flow marks the payment paid and updates the seller view live.
+          </Text>
+
+          <Box display="flex" flexDirection="column" gap="16px">
+            <Field label="Title">
+              <Box
+                as="input"
+                {...inputStyle as any}
+                value={title}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTitle(e.target.value)}
+              />
+            </Field>
+
+            <Grid templateColumns="1fr 1fr 1fr" gap="12px">
+              <Field label="Price (EUR)">
+                <Box
+                  as="input"
+                  {...inputStyle as any}
+                  value={price}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPrice(e.target.value)}
+                />
+              </Field>
+              <Field label="Min (haggle floor)">
+                <Box
+                  as="input"
+                  {...inputStyle as any}
+                  {...{ placeholder: "optional" } as any}
+                  value={floorPrice}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFloorPrice(e.target.value)}
+                />
+              </Field>
+              <Field label="Stock">
+                <Box
+                  as="input"
+                  type="number"
+                  min={0}
+                  {...inputStyle as any}
+                  value={stock}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStock(Math.max(0, Number(e.target.value)))}
+                />
+              </Field>
+            </Grid>
+
+            <Field label="Description">
+              <Textarea
+                {...inputStyle as any}
+                h="auto"
+                minH="90px"
+                py="10px"
+                resize="vertical"
+                value={description}
+                onChange={(e) => setDesc(e.target.value)}
+              />
+            </Field>
+          </Box>
+
+          {error && (
+            <Text fontFamily={FONT} fontSize="13px" color="red.500" mt="12px">{error}</Text>
+          )}
+
+          <Box
+            as="button"
+            w="full"
+            h="44px"
+            mt="20px"
+            bg={DARK}
+            color={INK_FG}
+            borderRadius="8px"
+            fontFamily={FONT}
+            fontSize="14px"
+            fontWeight="600"
+            cursor={busy ? "not-allowed" : "pointer"}
+            opacity={busy ? 0.7 : 1}
+            border="none"
+            _hover={{ opacity: busy ? 0.7 : 0.9 }}
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            onClick={busy ? undefined : handleSave}
+          >
+            {saving ? "Saving…" : "Save changes"}
+          </Box>
+
+          <Box mt="12px" display="flex" flexDirection="column" gap="8px">
+            {primaryAction && (
+              <Box
+                as="button"
+                w="full"
+                h="40px"
+                bg={SURFACE}
+                color={TEXT}
+                borderRadius="8px"
+                fontFamily={FONT}
+                fontSize="13px"
+                fontWeight="600"
+                cursor={busy ? "not-allowed" : "pointer"}
+                opacity={busy ? 0.6 : 1}
+                border="1px solid"
+                borderColor={BORDER}
+                _hover={{ bg: BORDER }}
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                onClick={busy ? undefined : primaryAction.fn}
+              >
+                {acting ? "Working…" : primaryAction.label}
+              </Box>
+            )}
+            {state === "archived" ? (
+              <>
+                <Box
+                  as="button"
+                  w="full"
+                  h="40px"
+                  bg={SURFACE}
+                  color={TEXT}
+                  borderRadius="8px"
+                  fontFamily={FONT}
+                  fontSize="13px"
+                  fontWeight="600"
+                  cursor={busy ? "not-allowed" : "pointer"}
+                  opacity={busy ? 0.6 : 1}
+                  border="1px solid"
+                  borderColor={BORDER}
+                  _hover={{ bg: BORDER }}
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  onClick={busy ? undefined : handleUnarchive}
+                >
+                  {acting ? "Working…" : "Move to draft"}
+                </Box>
+                <Box
+                  as="button"
+                  w="full"
+                  h="36px"
+                  bg="transparent"
+                  color={MUTED}
+                  borderRadius="8px"
+                  fontFamily={FONT}
+                  fontSize="12px"
+                  fontWeight="500"
+                  cursor={busy ? "not-allowed" : "pointer"}
+                  opacity={busy ? 0.5 : 1}
+                  border="none"
+                  _hover={{ color: "red.500" }}
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  onClick={busy ? undefined : handleDelete}
+                >
+                  {acting ? "Working…" : "Delete listing"}
+                </Box>
+              </>
+            ) : (
+              <Box
+                as="button"
+                w="full"
+                h="36px"
+                bg="transparent"
+                color={MUTED}
+                borderRadius="8px"
+                fontFamily={FONT}
+                fontSize="12px"
+                fontWeight="500"
+                cursor={busy ? "not-allowed" : "pointer"}
+                opacity={busy ? 0.5 : 1}
+                border="none"
+                _hover={{ color: "red.500" }}
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                onClick={busy ? undefined : handleArchive}
+              >
+                {acting ? "Working…" : "Archive listing"}
+              </Box>
+            )}
+          </Box>
+        </Box>
+      </Box>
+    </Flex>
+  );
+}
