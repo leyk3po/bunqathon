@@ -4,7 +4,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env")
+load_dotenv(Path(__file__).resolve().parent.parent.parent / ".env", override=True)
 _DEFAULT_BUNQ_CONTEXT_FILE = str(Path(__file__).resolve().parent.parent.parent / ".bunq_context.json")
 
 
