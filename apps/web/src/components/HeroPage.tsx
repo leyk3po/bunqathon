@@ -271,10 +271,9 @@ export default function HeroPage() {
             </Text>
 
             <Flex
-              align="flex-end"
-              justify="space-between"
-              gap="24px"
-              wrap="wrap"
+              direction="column"
+              align="flex-start"
+              gap="20px"
             >
               <Text maxW="500px" fontSize={{ base: "15px", md: "16px" }} lineHeight="1.5" color={TEXT} opacity={0.82}>
                 Point your camera at anything sellable. We turn it into a paid drop with a bunq QR — in under thirty seconds.
