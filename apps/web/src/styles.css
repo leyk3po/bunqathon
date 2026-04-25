@@ -309,8 +309,8 @@ a {
 }
 
 @keyframes page-fade {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .login-logo-in { animation: fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 0.05s; }
@@ -321,13 +321,17 @@ a {
    Voice waveform
 ───────────────────────────────────────────────── */
 @keyframes voice-bar {
-  0%, 100% { transform: scaleY(0.15); }
-  50%       { transform: scaleY(1); }
+  0%   { transform: scaleY(0.12); }
+  20%  { transform: scaleY(0.85); }
+  40%  { transform: scaleY(0.28); }
+  60%  { transform: scaleY(1);    }
+  80%  { transform: scaleY(0.42); }
+  100% { transform: scaleY(0.12); }
 }
 
 .voice-bar {
-  transform-origin: center bottom;
-  animation: voice-bar 0.7s ease-in-out infinite;
+  transform-origin: center center;
+  animation: voice-bar 1.1s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
 /* ─────────────────────────────────────────────────

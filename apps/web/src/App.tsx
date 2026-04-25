@@ -41,7 +41,7 @@ const btnOutline = {
 } as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const SELLER_KEY  = "flashdrop_seller_id";
+const SELLER_KEY = "flashdrop_seller_id";
 const getSellerId = () => sessionStorage.getItem(SELLER_KEY) ?? "";
 const setSellerId = (v: string) => sessionStorage.setItem(SELLER_KEY, v);
 
@@ -72,8 +72,8 @@ function listingMatchesFilter(listing: Listing, filters: DropStatusFilter[]): bo
 function dropToListing(drop: DropPublic): Listing {
   const status =
     drop.state === "live" ? "live" as const
-    : drop.state === "sold_out" ? "sold" as const
-    : "draft" as const;
+      : drop.state === "sold_out" ? "sold" as const
+        : "draft" as const;
   return {
     id: drop.id, slug: drop.slug, title: drop.title,
     description: drop.description ?? "", price: eurosFromCents(drop.price_cents),
@@ -217,6 +217,128 @@ function IconArrow() {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
       <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+function IconPlay() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M6 4.5v15l13-7.5L6 4.5Z" />
+    </svg>
+  );
+}
+
+function IconPause() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+      <rect x="5" y="4" width="4" height="16" rx="1" />
+      <rect x="15" y="4" width="4" height="16" rx="1" />
+    </svg>
+  );
+}
+
+function IconTrash() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <path d="M4.75 6.75h14.5M10 6.75V5.25a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 .75.75v1.5M8.75 9.75v7M12 9.75v7M15.25 9.75v7M6.25 6.75l.75 12.5h10l.75-12.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CustomAudioPlayer({ src, onDelete }: { src: string; onDelete: () => void }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const rafRef    = useRef<number>(0);
+  const [playing, setPlaying] = useState(false);
+  const [current, setCurrent] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  const startRaf = () => {
+    const tick = () => {
+      const a = audioRef.current;
+      if (a) setCurrent(a.currentTime);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+  };
+  const stopRaf = () => cancelAnimationFrame(rafRef.current);
+
+  const toggle = () => {
+    const a = audioRef.current; if (!a) return;
+    if (playing) { a.pause(); stopRaf(); setPlaying(false); }
+    else { a.play().then(() => { setPlaying(true); startRaf(); }).catch(() => {}); }
+  };
+
+  useEffect(() => () => stopRaf(), []);
+
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+  const pct = duration > 0 ? (current / duration) * 100 : 0;
+
+  return (
+    <Box mt="10px">
+      <audio
+        ref={audioRef}
+        src={src}
+        onLoadedMetadata={(e) => setDuration((e.target as HTMLAudioElement).duration)}
+        onEnded={() => { stopRaf(); setPlaying(false); setCurrent(0); }}
+      />
+      <Box className="glass-card" borderRadius="12px" p="12px 14px">
+        <Flex align="center" gap="10px">
+          {/* Play/pause */}
+          <Box
+            as="button"
+            w="36px" h="36px" flexShrink={0}
+            borderRadius="50%"
+            bg={TEXT} color={CARD}
+            border="none" cursor="pointer"
+            display="flex" alignItems="center" justifyContent="center"
+            onClick={toggle}
+            style={{ paddingLeft: playing ? 0 : "2px" }}
+          >
+            {playing ? <IconPause /> : <IconPlay />}
+          </Box>
+
+          {/* Scrubber + timestamps */}
+          <Box flex={1} display="flex" flexDirection="column" justifyContent="center" gap="6px">
+            <Box
+              position="relative" h="4px"
+              bg={BORDER} borderRadius="2px"
+              cursor="pointer"
+              onClick={(e: React.MouseEvent<HTMLDivElement>) => {
+                if (!audioRef.current || !duration) return;
+                const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                const t = ((e.clientX - rect.left) / rect.width) * duration;
+                audioRef.current.currentTime = t;
+                setCurrent(t);
+              }}
+            >
+              <Box position="absolute" left={0} top={0} h="full" borderRadius="2px" bg={TEXT}
+                style={{ width: `${pct}%` }} />
+              <Box position="absolute" top="50%" w="12px" h="12px" borderRadius="50%" bg={TEXT}
+                style={{ left: `calc(${pct}% - 6px)`, transform: "translateY(-50%)" }} />
+            </Box>
+            <Flex justify="space-between">
+              <Text fontFamily={FONT} fontSize="11px" color={MUTED}>{fmt(current)}</Text>
+              <Text fontFamily={FONT} fontSize="11px" color={MUTED}>{fmt(duration)}</Text>
+            </Flex>
+          </Box>
+
+          {/* Trash */}
+          <Box
+            as="button"
+            w="32px" h="32px" flexShrink={0}
+            borderRadius="8px"
+            bg="transparent" color={MUTED}
+            border="none" cursor="pointer"
+            display="flex" alignItems="center" justifyContent="center"
+            title="Delete recording"
+            onClick={onDelete}
+            _hover={{ color: "#dc2626", bg: "rgba(220,38,38,0.08)" }}
+          >
+            <IconTrash />
+          </Box>
+        </Flex>
+      </Box>
+    </Box>
   );
 }
 
@@ -399,14 +521,14 @@ function notifFromApi(n: NotificationPublic): SaleNotification {
 }
 
 function DashboardPage() {
-  const navigate                   = useNavigate();
-  const { dark, toggle }           = useTheme();
-  const [seller, setSeller]        = useState<SellerPublic | null>(() => getStoredSeller());
-  const [listings, setListings]    = useState<Listing[]>([]);
-  const [loading, setLoading]      = useState(true);
-  const [loadError, setLoadError]  = useState("");
+  const navigate = useNavigate();
+  const { dark, toggle } = useTheme();
+  const [seller, setSeller] = useState<SellerPublic | null>(() => getStoredSeller());
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [captureOpen, setCaptureOpen] = useState(false);
-  const [editTarget, setEditTarget]   = useState<Listing | null>(null);
+  const [editTarget, setEditTarget] = useState<Listing | null>(null);
   const [previewTarget, setPreviewTarget] = useState<Listing | null>(null);
   const [celebration, setCelebration] = useState<CelebrationData | null>(null);
   const [activeStatuses, setActiveStatuses] = useState<DropStatusFilter[]>(["live"]);
@@ -437,7 +559,7 @@ function DashboardPage() {
   useEffect(() => {
     if (!notifOpen) return;
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    api.markNotificationsRead().catch(() => {});
+    api.markNotificationsRead().catch(() => { });
   }, [notifOpen]);
 
   useEffect(() => {
@@ -451,9 +573,9 @@ function DashboardPage() {
     return () => document.removeEventListener("mousedown", handler);
   }, [notifOpen]);
 
-  const liveCount  = listings.filter((l) => l.status === "live").length;
+  const liveCount = listings.filter((l) => l.status === "live").length;
   const stockCount = listings.reduce((t, l) => t + l.stock, 0);
-  const soldCount  = listings.filter((l) => l.status === "sold").length;
+  const soldCount = listings.filter((l) => l.status === "sold").length;
 
   useEffect(() => {
     if (!sellerId) {
@@ -498,7 +620,7 @@ function DashboardPage() {
     if (!sellerId) return;
     api.listNotifications()
       .then((list) => setNotifications(list.map(notifFromApi)))
-      .catch(() => {});
+      .catch(() => { });
   }, [sellerId]);
 
   const updateListing = useCallback((id: string, u: Partial<Listing>) => {
@@ -517,7 +639,7 @@ function DashboardPage() {
   }, []);
 
   return (
-    <Box bg={BG} minH="100dvh" pb="120px" position="relative" className="page-enter">
+    <Box bg={BG} minH="100dvh" pb="120px" className="page-enter">
       {/* Animated gradient background */}
       <Box className="grad-bg">
         <Box className="grad-orb orb-1" />
@@ -538,7 +660,7 @@ function DashboardPage() {
       >
         <Flex align="center" justify="space-between" w="full" maxW="1200px" mx="auto">
           {/* Wordmark */}
-          <BunqWordmark height={32}/>
+          <BunqWordmark height={32} />
 
           {/* Right controls */}
           <Flex align="center" gap="8px" flexShrink={0}>
@@ -754,8 +876,8 @@ function DashboardPage() {
         <SimpleGrid columns={3} gap={{ base: "10px", md: "16px" }} mb={{ base: "24px", md: "32px" }}>
           {[
             { label: "Live drops", value: liveCount },
-            { label: "In stock",   value: stockCount },
-            { label: "Sold out",   value: soldCount },
+            { label: "In stock", value: stockCount },
+            { label: "Sold out", value: soldCount },
           ].map(({ label, value }) => (
             <GlassCard
               key={label}
@@ -942,30 +1064,30 @@ function DashboardPage() {
 type CaptureProps = { onClose: () => void; onPost: (l: Listing) => void };
 
 function CaptureOverlay({ onClose, onPost }: CaptureProps) {
-  const videoRef        = useRef<HTMLVideoElement | null>(null);
-  const streamRef       = useRef<MediaStream | null>(null);
-  const recorderRef     = useRef<MediaRecorder | null>(null);
-  const recognitionRef  = useRef<{ stop: () => void } | null>(null);
-  const audioChunksRef  = useRef<Blob[]>([]);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recognitionRef = useRef<{ stop: () => void } | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const capturedBlobRef = useRef<Blob | null>(null);
-  const remoteMediaRef  = useRef<string | null>(null);
+  const remoteMediaRef = useRef<string | null>(null);
 
-  const [draft, setDraft]           = useState<DraftListing>(emptyDraft);
+  const [draft, setDraft] = useState<DraftListing>(emptyDraft);
   const [cameraError, setCameraErr] = useState("");
-  const [apiError, setApiError]     = useState("");
+  const [apiError, setApiError] = useState("");
   const [isUploading, setUploading] = useState(false);
-  const [isGenerating, setGen]      = useState(false);
-  const [isPosting, setPosting]     = useState(false);
+  const [isGenerating, setGen] = useState(false);
+  const [isPosting, setPosting] = useState(false);
   const [isRecording, setRecording] = useState(false);
   const [voiceError, setVoiceError] = useState("");
 
-  const hasPhoto    = Boolean(draft.imageUrl);
+  const hasPhoto = Boolean(draft.imageUrl);
   const canGenerate = hasPhoto || draft.prompt.trim().length > 0;
   const expiryInvalid = Boolean(
     draft.expiresDate && draft.expiresTime &&
     new Date(`${draft.expiresDate}T${draft.expiresTime}`) <= new Date()
   ) || Boolean(draft.expiresDate && !draft.expiresTime);
-  const canPublish  = canGenerate && !expiryInvalid;
+  const canPublish = canGenerate && !expiryInvalid;
   const SpeechRecognitionCtor =
     typeof window === "undefined"
       ? null
@@ -1108,8 +1230,8 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
         ? new Date(`${draft.expiresDate}T${draft.expiresTime}`).toISOString()
         : null;
       const floorCents = draft.floorPrice.trim() ? centsFromEuros(draft.floorPrice) : null;
-      const created  = await api.createDrop({ title: draft.title.trim() || titleFromPrompt(draft.prompt), description: draft.description.trim(), pitch: draft.prompt.trim() || null, price_cents: centsFromEuros(draft.price), floor_price_cents: floorCents, inventory: Math.max(1, draft.stock), media_url: mediaUrl, expires_at: expiresIso });
-      const live     = await api.publish(created.id);
+      const created = await api.createDrop({ title: draft.title.trim() || titleFromPrompt(draft.prompt), description: draft.description.trim(), pitch: draft.prompt.trim() || null, price_cents: centsFromEuros(draft.price), floor_price_cents: floorCents, inventory: Math.max(1, draft.stock), media_url: mediaUrl, expires_at: expiresIso });
+      const live = await api.publish(created.id);
       onPost({ id: live.id, slug: live.slug, title: live.title, description: live.description, price: eurosFromCents(live.price_cents), stock: live.inventory, category: draft.category, imageUrl: draft.imageUrl, prompt: draft.prompt, status: "live", state: live.state, createdAt: nowTime(), audioUrl: draft.audioUrl, bunqTabUrl: live.bunq_tab_url, expiresAt: live.expires_at ?? undefined });
       onClose();
     } catch (err) {
@@ -1258,27 +1380,13 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
             </Box>
 
             {draft.audioUrl && (
-              <Box mt="10px">
-                <audio controls src={draft.audioUrl} style={{ width: "100%", borderRadius: "8px" }} />
-                <Box
-                  as="button"
-                  mt="6px"
-                  fontFamily={FONT}
-                  fontSize="12px"
-                  color={MUTED}
-                  bg="transparent"
-                  border="none"
-                  cursor="pointer"
-                  p="0"
-                  _hover={{ color: "#dc2626" }}
-                  onClick={() => {
-                    URL.revokeObjectURL(draft.audioUrl!);
-                    setDraft((d) => ({ ...d, audioUrl: undefined, prompt: "" }));
-                  }}
-                >
-                  ✕ Delete recording &amp; re-record
-                </Box>
-              </Box>
+              <CustomAudioPlayer
+                src={draft.audioUrl}
+                onDelete={() => {
+                  URL.revokeObjectURL(draft.audioUrl!);
+                  setDraft((d) => ({ ...d, audioUrl: undefined, prompt: "" }));
+                }}
+              />
             )}
 
             {(voiceError || !supportsDeviceTranscription) && (
@@ -1405,7 +1513,7 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
               gap="8px"
             >
               {isPosting && <Spinner size="xs" />}
-              {isPosting ? "Publishing…" : "Publish to bunq"}
+              {isPosting ? "Posting…" : "Post"}
               {!isPosting && <IconArrow />}
             </Box>
           </Box>
@@ -1614,8 +1722,8 @@ function LiveWallPage() {
   const stateLabel = dropStateLabel(drop.state);
   const ctaLabel =
     drop.state === "sold_out" ? "Sold out"
-    : drop.state === "draft" ? "Preparing to go live"
-    : "Scan to pay instantly";
+      : drop.state === "draft" ? "Preparing to go live"
+        : "Scan to pay instantly";
   const isLive = drop.state === "live";
   const dotClass = drop.state === "live" ? "dot-live" : undefined;
   const isSoldOut = drop.state === "sold_out";
@@ -1741,7 +1849,7 @@ function LiveWallPage() {
                 </Text>
               )}
 
-                <SimpleGrid columns={{ base: 2, md: drop.expires_at ? 4 : 3 }} gap="12px" mt={{ base: "24px", xl: "28px" }}>
+              <SimpleGrid columns={{ base: 2, md: drop.expires_at ? 4 : 3 }} gap="12px" mt={{ base: "24px", xl: "28px" }}>
                 {[
                   { label: "Price", value: `€ ${eurosFromCents(drop.price_cents)}` },
                   { label: "Remaining", value: String(Math.max(0, drop.inventory)) },
@@ -2018,12 +2126,12 @@ function BuyerCheckoutPage() {
             {checkoutState === "paid"
               ? "Already paid"
               : checkoutState === "unavailable"
-              ? "Unavailable"
-              : paying
-              ? "Processing payment…"
-              : haggleCents != null && haggleCents !== drop.price_cents
-              ? `Pay haggled € ${eurosFromCents(haggleCents)}`
-              : "Pay now"}
+                ? "Unavailable"
+                : paying
+                  ? "Processing payment…"
+                  : haggleCents != null && haggleCents !== drop.price_cents
+                    ? `Pay haggled € ${eurosFromCents(haggleCents)}`
+                    : "Pay now"}
           </Box>
 
           <Box mt="14px">
