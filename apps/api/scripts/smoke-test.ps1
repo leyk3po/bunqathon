@@ -107,7 +107,7 @@ conn = sqlite3.connect(db_path)
 try:
     cur = conn.cursor()
     cur.execute(
-        "SELECT bunq_reference FROM payments WHERE drop_id = ? ORDER BY created_at DESC LIMIT 1",
+        "SELECT bunq_tab_reference FROM drops WHERE id = ? LIMIT 1",
         (drop_id,),
     )
     row = cur.fetchone()
@@ -151,10 +151,6 @@ $drop | ConvertTo-Json -Depth 10
 Write-Step "Fetching created drop"
 $fetched = Invoke-Api -Method GET -Path "/drops/$($drop.slug)"
 $fetched | ConvertTo-Json -Depth 10
-
-Write-Step "Moving drop to review"
-$reviewed = Invoke-Api -Method POST -Path "/drops/$($drop.id)/review"
-$reviewed | ConvertTo-Json -Depth 10
 
 Write-Step "Publishing drop"
 $published = Invoke-Api -Method POST -Path "/drops/$($drop.id)/publish"

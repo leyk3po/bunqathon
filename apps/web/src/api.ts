@@ -16,13 +16,8 @@ export const liveWallUrl = (slug: string) =>
 
 export type DropState =
   | "draft"
-  | "processing"
-  | "review"
   | "live"
-  | "partially_sold"
   | "sold_out"
-  | "paused"
-  | "expired"
   | "archived";
 
 export type PaymentStatus = "pending" | "paid" | "failed" | "expired";
@@ -221,20 +216,11 @@ export const api = {
   updateDrop: (id: string, payload: Partial<{ title: string; description: string; pitch: string | null; price_cents: number; currency: string; inventory: number; media_url: string | null }>): Promise<DropDetail> =>
     request<DropDetail>(`/drops/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(payload) }),
 
-  moveToReview: (id: string): Promise<DropDetail> =>
-    request<DropDetail>(`/drops/${encodeURIComponent(id)}/review`, { method: "POST" }),
-
   publish: (id: string): Promise<DropDetail> =>
     request<DropDetail>(`/drops/${encodeURIComponent(id)}/publish`, { method: "POST" }),
 
   mockPayment: (id: string): Promise<DropDetail> =>
     request<DropDetail>(`/drops/${encodeURIComponent(id)}/mock-payment`, { method: "POST" }),
-
-  pause: (id: string): Promise<DropDetail> =>
-    request<DropDetail>(`/drops/${encodeURIComponent(id)}/pause`, { method: "POST" }),
-
-  resume: (id: string): Promise<DropDetail> =>
-    request<DropDetail>(`/drops/${encodeURIComponent(id)}/resume`, { method: "POST" }),
 
   archive: (id: string): Promise<DropDetail> =>
     request<DropDetail>(`/drops/${encodeURIComponent(id)}/archive`, { method: "POST" }),

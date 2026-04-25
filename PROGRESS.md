@@ -44,7 +44,7 @@ Scope:
 Progress:
 - [x] Document payload shapes for the frontend
 - [x] Make SSE emit an initial snapshot
-- [ ] Lock the create -> review -> publish -> live-update flow for the frontend
+- [x] Lock the create -> publish -> live-update flow for the frontend
 
 ### Phase 4: Integration Hardening
 Status: Pending

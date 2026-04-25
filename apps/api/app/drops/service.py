@@ -17,13 +17,8 @@ from app.integrations import bunq
 _SLUG_SAFE = re.compile(r"[^a-z0-9]+")
 _ARCHIVABLE_STATES = {
     DropState.draft,
-    DropState.processing,
-    DropState.review,
     DropState.live,
-    DropState.partially_sold,
-    DropState.paused,
     DropState.sold_out,
-    DropState.expired,
 }
 
 
@@ -156,7 +151,7 @@ def ensure_owner(drop: Drop, seller_id: str) -> None:
 
 def update_drop(db: Session, drop_id: str, payload: DropUpdate) -> Drop:
     drop = get_by_id(db, drop_id)
-    if drop.state in (DropState.archived, DropState.expired):
+    if drop.state == DropState.archived:
         raise DropConflict(f"cannot update drop in state {drop.state.value}")
     data = payload.model_dump(exclude_unset=True)
     if "currency" in data and data["currency"]:
@@ -177,35 +172,10 @@ def update_drop(db: Session, drop_id: str, payload: DropUpdate) -> Drop:
     return drop
 
 
-def move_drop_to_review(db: Session, drop_id: str) -> Drop:
-    drop = get_by_id(db, drop_id)
-    _transition(
-        drop,
-        allowed={DropState.draft, DropState.processing},
-        to_state=DropState.review,
-        action="move to review",
-    )
-    record_event(
-        db,
-        event_type="drop.reviewed",
-        source=EventSource.domain,
-        drop=drop,
-        payload={"state": drop.state.value},
-    )
-    db.commit()
-    db.refresh(drop)
-    events.publish(drop.slug, {"type": "state_changed", "state": drop.state.value})
-    return drop
-
-
 def publish_drop(db: Session, drop_id: str) -> Drop:
     drop = get_by_id(db, drop_id)
-    _transition(
-        drop,
-        allowed={DropState.review},
-        to_state=DropState.live,
-        action="publish",
-    )
+    if drop.state != DropState.draft:
+        raise DropConflict(f"cannot publish drop in state {drop.state.value}; allowed states: draft")
     if drop.price_cents <= 0:
         raise DropInvalid("price must be > 0 before publishing")
     if drop.inventory <= 0:
@@ -217,23 +187,15 @@ def publish_drop(db: Session, drop_id: str) -> Drop:
         description=drop.title,
         drop_slug=drop.slug,
     )
+    drop.state = DropState.live
     drop.bunq_tab_url = tab.share_url
     drop.bunq_tab_uuid = tab.uuid
-
-    pending = Payment(
-        drop_id=drop.id,
-        amount_cents=drop.price_cents,
-        currency=drop.currency,
-        bunq_reference=tab.payment_reference,
-        status=PaymentStatus.pending,
-    )
-    db.add(pending)
+    drop.bunq_tab_reference = tab.payment_reference
     record_event(
         db,
         event_type="drop.published",
         source=EventSource.domain,
         drop=drop,
-        payment=pending,
         external_id=tab.payment_reference,
         payload={
             "state": drop.state.value,
@@ -261,78 +223,25 @@ def mock_payment_for_drop(db: Session, drop_id: str) -> Drop:
         raise DropConflict("mock payment is only available when BUNQ_SANDBOX=true")
 
     drop = get_by_id(db, drop_id)
-    payment = db.scalar(
-        select(Payment)
-        .where(Payment.drop_id == drop.id, Payment.status == PaymentStatus.pending)
-        .order_by(Payment.created_at.desc())
-    )
-    if payment is None:
-        payment = db.scalar(
-            select(Payment).where(Payment.drop_id == drop.id).order_by(Payment.created_at.desc())
-        )
-    if payment is None or not payment.bunq_reference:
+    if not drop.bunq_tab_reference:
         raise DropConflict("drop has no bunq payment to mock")
 
     updated_drop, _payment = apply_payment_event(
         db,
-        reference=payment.bunq_reference,
+        reference=drop.bunq_tab_reference,
         new_status=PaymentStatus.paid,
-        amount_cents=payment.amount_cents,
-        webhook_event_id=f"sandbox-mock:{payment.id}",
+        amount_cents=drop.price_cents,
+        webhook_event_id=f"sandbox-mock:{drop.id}:{drop.sold_count + 1}",
         webhook_payload={
             "source": "sandbox_mock",
-            "reference": payment.bunq_reference,
-            "amount_cents": payment.amount_cents,
+            "reference": drop.bunq_tab_reference,
+            "amount_cents": drop.price_cents,
             "status": PaymentStatus.paid.value,
             "drop_id": drop.id,
         },
     )
     db.refresh(updated_drop)
     return updated_drop
-
-
-def pause_drop(db: Session, drop_id: str) -> Drop:
-    drop = get_by_id(db, drop_id)
-    _transition(
-        drop,
-        allowed={DropState.live, DropState.partially_sold},
-        to_state=DropState.paused,
-        action="pause",
-    )
-    record_event(
-        db,
-        event_type="drop.paused",
-        source=EventSource.domain,
-        drop=drop,
-        payload={"state": drop.state.value},
-    )
-    db.commit()
-    db.refresh(drop)
-    events.publish(drop.slug, {"type": "state_changed", "state": drop.state.value})
-    return drop
-
-
-def resume_drop(db: Session, drop_id: str) -> Drop:
-    drop = get_by_id(db, drop_id)
-    if drop.state != DropState.paused:
-        raise DropConflict(f"cannot resume drop in state {drop.state.value}")
-    if drop.inventory <= 0:
-        raise DropConflict("cannot resume a sold out drop")
-    if drop.price_cents <= 0:
-        raise DropInvalid("price must be > 0 before resuming")
-
-    drop.state = _active_state_for(drop)
-    record_event(
-        db,
-        event_type="drop.resumed",
-        source=EventSource.domain,
-        drop=drop,
-        payload={"state": drop.state.value},
-    )
-    db.commit()
-    db.refresh(drop)
-    events.publish(drop.slug, {"type": "state_changed", "state": drop.state.value})
-    return drop
 
 
 def archive_drop(db: Session, drop_id: str) -> Drop:
@@ -365,12 +274,20 @@ def apply_payment_event(
     webhook_event_id: str | None = None,
     webhook_payload: dict | None = None,
 ) -> tuple[Drop, Payment]:
-    payment = db.scalar(select(Payment).where(Payment.bunq_reference == reference))
-    if payment is None:
-        raise DropNotFound("payment not found for reference")
-    drop = db.get(Drop, payment.drop_id)
+    drop = db.scalar(select(Drop).where(Drop.bunq_tab_reference == reference))
+    if drop is None:
+        payment = db.scalar(
+            select(Payment).where(Payment.bunq_reference == reference).order_by(Payment.created_at.desc())
+        )
+        if payment is None:
+            raise DropNotFound("payment not found for reference")
+        drop = db.get(Drop, payment.drop_id)
+    else:
+        payment = None
     if drop is None:
         raise DropNotFound("drop missing")
+    if drop.bunq_tab_reference is None:
+        raise DropNotFound("payment not found for reference")
 
     if webhook_payload is not None:
         if webhook_event_id:
@@ -384,29 +301,42 @@ def apply_payment_event(
                 payload=webhook_payload,
             )
             if inserted is None:
-                return drop, payment
+                existing = db.scalar(
+                    select(Payment)
+                    .where(Payment.drop_id == drop.id, Payment.bunq_reference == reference)
+                    .order_by(Payment.created_at.desc())
+                )
+                if existing is None:
+                    raise DropConflict("payment event already processed without stored payment")
+                return drop, existing
         else:
             record_event(
                 db,
                 event_type="webhook.bunq.payment_received",
                 source=EventSource.webhook,
                 drop=drop,
-                payment=payment,
                 payload=webhook_payload,
             )
 
-    if payment.status == PaymentStatus.paid and new_status == PaymentStatus.paid:
-        db.commit()
-        return drop, payment
+    payment = Payment(
+        drop_id=drop.id,
+        amount_cents=amount_cents if amount_cents is not None else drop.price_cents,
+        currency=drop.currency,
+        bunq_reference=reference,
+        status=new_status,
+    )
+    db.add(payment)
 
-    payment.status = new_status
-    if amount_cents is not None:
-        payment.amount_cents = amount_cents
-
-    if new_status == PaymentStatus.paid:
+    counted_sale = False
+    if (
+        new_status == PaymentStatus.paid
+        and drop.state == DropState.live
+        and drop.inventory > 0
+    ):
         drop.sold_count = drop.sold_count + 1
         drop.inventory = max(0, drop.inventory - 1)
-        drop.state = _active_state_for(drop)
+        drop.state = _sellable_state_for(drop)
+        counted_sale = True
 
     record_event(
         db,
@@ -421,6 +351,7 @@ def apply_payment_event(
             "drop_state": drop.state.value,
             "inventory": drop.inventory,
             "sold_count": drop.sold_count,
+            "counted_sale": counted_sale,
         },
     )
     db.commit()
@@ -433,27 +364,19 @@ def apply_payment_event(
             "drop_state": drop.state.value,
             "inventory": drop.inventory,
             "sold_count": drop.sold_count,
+            "counted_sale": counted_sale,
         },
     )
     return drop, payment
 
 
-def _active_state_for(drop: Drop) -> DropState:
+def _sellable_state_for(drop: Drop) -> DropState:
     if drop.inventory <= 0:
         return DropState.sold_out
-    if drop.sold_count > 0:
-        return DropState.partially_sold
     return DropState.live
 
 
 def _sync_active_state(drop: Drop) -> None:
-    if drop.state in (
-        DropState.draft,
-        DropState.processing,
-        DropState.review,
-        DropState.paused,
-        DropState.archived,
-        DropState.expired,
-    ):
+    if drop.state in (DropState.draft, DropState.archived):
         return
-    drop.state = _active_state_for(drop)
+    drop.state = _sellable_state_for(drop)

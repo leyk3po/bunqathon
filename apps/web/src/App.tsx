@@ -46,13 +46,8 @@ type DropStatusFilter = DropState;
 
 const statusTabs: Array<{ value: DropStatusFilter; label: string }> = [
   { value: "draft", label: "Draft" },
-  { value: "processing", label: "Processing" },
-  { value: "review", label: "Review" },
   { value: "live", label: "Live" },
-  { value: "partially_sold", label: "Selling" },
   { value: "sold_out", label: "Sold" },
-  { value: "paused", label: "Paused" },
-  { value: "expired", label: "Expired" },
   { value: "archived", label: "Archived" },
 ];
 
@@ -73,7 +68,7 @@ function listingMatchesFilter(listing: Listing, filters: DropStatusFilter[]): bo
 
 function dropToListing(drop: DropPublic): Listing {
   const status =
-    drop.state === "live" || drop.state === "partially_sold" ? "live" as const
+    drop.state === "live" ? "live" as const
     : drop.state === "sold_out" ? "sold" as const
     : "draft" as const;
   return {
@@ -91,7 +86,6 @@ function nowTime() {
 }
 
 function checkoutStatusFromState(state: DropState): "ready" | "paid" | "unavailable" {
-  if (state === "sold_out" || state === "partially_sold") return "paid";
   if (state === "live") return "ready";
   return "unavailable";
 }
@@ -99,12 +93,7 @@ function checkoutStatusFromState(state: DropState): "ready" | "paid" | "unavaila
 function dropStateLabel(state: DropState): string {
   switch (state) {
     case "live": return "Live now";
-    case "partially_sold": return "Selling fast";
     case "sold_out": return "Sold out";
-    case "paused": return "Paused";
-    case "review":
-    case "processing": return "Preparing";
-    case "expired": return "Expired";
     case "archived": return "Archived";
     default: return "Draft";
   }
@@ -877,8 +866,7 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
       if (!capturedBlobRef.current && draft.imageUrl.startsWith("data:")) capturedBlobRef.current = await dataUrlToBlob(draft.imageUrl);
       const mediaUrl = await ensureUploaded();
       const created  = await api.createDrop({ title: draft.title.trim() || titleFromPrompt(draft.prompt), description: draft.description.trim(), pitch: draft.prompt.trim() || null, price_cents: centsFromEuros(draft.price), inventory: Math.max(1, draft.stock), media_url: mediaUrl });
-      const reviewed = await api.moveToReview(created.id);
-      const live     = await api.publish(reviewed.id);
+      const live     = await api.publish(created.id);
       onPost({ id: live.id, slug: live.slug, title: live.title, description: live.description, price: eurosFromCents(live.price_cents), stock: live.inventory, category: draft.category, imageUrl: draft.imageUrl, prompt: draft.prompt, status: "live", state: live.state, createdAt: nowTime(), audioUrl: draft.audioUrl, bunqTabUrl: live.bunq_tab_url });
       onClose();
     } catch (err) {
@@ -1170,7 +1158,7 @@ function LiveWallPage() {
         if (!active) return;
         setDrop(result);
         pushActivity(
-          result.state === "live" || result.state === "partially_sold"
+          result.state === "live"
             ? "Wall ready. Buyers can scan and pay now."
             : `Drop is ${dropStateLabel(result.state).toLowerCase()}.`,
           "info",
@@ -1315,8 +1303,7 @@ function LiveWallPage() {
   const stateLabel = dropStateLabel(drop.state);
   const ctaLabel =
     drop.state === "sold_out" ? "Sold out"
-    : drop.state === "paused" ? "Paused"
-    : drop.state === "review" || drop.state === "draft" ? "Preparing to go live"
+    : drop.state === "draft" ? "Preparing to go live"
     : "Scan to pay instantly";
 
   return (
@@ -1344,8 +1331,8 @@ function LiveWallPage() {
               w="10px"
               h="10px"
               borderRadius="50%"
-              bg={drop.state === "live" || drop.state === "partially_sold" ? G : "whiteAlpha.500"}
-              boxShadow={drop.state === "live" || drop.state === "partially_sold" ? "0 0 0 8px rgba(0,213,75,0.16)" : "none"}
+              bg={drop.state === "live" ? G : "whiteAlpha.500"}
+              boxShadow={drop.state === "live" ? "0 0 0 8px rgba(0,213,75,0.16)" : "none"}
             />
             <Text fontFamily={FONT} fontSize="12px" fontWeight="700" color="whiteAlpha.700" textTransform="uppercase" letterSpacing="0.16em">
               FlashDrop Live Wall

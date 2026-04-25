@@ -27,7 +27,7 @@ export type Listing = {
 };
 
 function listingStatusFromDropState(state: DropState | undefined): ListingStatus {
-  if (state === "live" || state === "partially_sold") return "live";
+  if (state === "live") return "live";
   if (state === "sold_out") return "sold";
   return "draft";
 }
@@ -92,7 +92,7 @@ export function ListingCard({
   }, [listing.slug, listing.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const st = listing.state ?? (listing.status === "live" ? "live" : listing.status === "sold" ? "sold_out" : "draft");
-  const isShareable = st === "live" || st === "partially_sold";
+  const isShareable = st === "live";
   const shareUrl = buyerCheckoutUrl(listing.slug);
 
   const stopAndRun = (event: React.MouseEvent, action: () => void) => {
@@ -180,12 +180,12 @@ export function ListingCard({
   }
 
   function StatusBadge() {
-    if (st === "live" || st === "partially_sold") {
+    if (st === "live") {
       return (
         <Flex align="center" gap="5px" bg="white" borderRadius="20px" px="8px" py="4px" boxShadow="0 1px 6px rgba(0,0,0,0.14)">
           <Box bg="black" borderRadius="full" h="6px" w="6px" flexShrink={0} position="relative" className="live-pulse" />
           <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color="black">
-            {st === "partially_sold" ? "Selling" : "Live"}
+            Live
           </Text>
         </Flex>
       );
@@ -197,30 +197,11 @@ export function ListingCard({
         </Box>
       );
     }
-    if (st === "review" || st === "processing") {
-      return (
-        <Box bg="rgba(200,140,20,0.85)" borderRadius="20px" px="8px" py="4px" style={{ backdropFilter: "blur(6px)" }}>
-          <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color="white">In review</Text>
-        </Box>
-      );
-    }
-    if (st === "paused") {
-      return (
-        <Box bg="rgba(80,80,90,0.80)" borderRadius="20px" px="8px" py="4px" style={{ backdropFilter: "blur(6px)" }}>
-          <Text fontFamily={FONT} fontSize="11px" fontWeight="500" color="white">Paused</Text>
-        </Box>
-      );
-    }
-    if (st === "expired") {
-      return (
-        <Box bg="rgba(160,50,50,0.80)" borderRadius="20px" px="8px" py="4px" style={{ backdropFilter: "blur(6px)" }}>
-          <Text fontFamily={FONT} fontSize="11px" fontWeight="500" color="white">Expired</Text>
-        </Box>
-      );
-    }
     return (
       <Box bg="rgba(0,0,0,0.45)" borderRadius="20px" px="8px" py="4px" style={{ backdropFilter: "blur(6px)" }}>
-        <Text fontFamily={FONT} fontSize="11px" fontWeight="500" color="white">Draft</Text>
+        <Text fontFamily={FONT} fontSize="11px" fontWeight="500" color="white">
+          {st === "archived" ? "Archived" : "Draft"}
+        </Text>
       </Box>
     );
   }
