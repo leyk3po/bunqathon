@@ -1,4 +1,0 @@
-aws_region     = "eu-central-1"
-app_name       = "flashdrop"
-s3_bucket_name = "flashdrop-media-hackathon"
-db_password    = "change_me_strong_password"
