@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.core.database import init_db
 from app.core.schemas import ApiMeta
+from app.auth.router import router as auth_router
 from app.drops.router import router as drops_router
 from app.drops.stream import router as drops_stream_router
 from app.health.router import router as health_router
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
 
     for router in (
         health_router,
+        auth_router,
         drops_router,
         drops_stream_router,
         media_router,

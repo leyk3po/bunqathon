@@ -5,10 +5,14 @@ const BASE = import.meta.env.VITE_API_BASE_URL || "";
 const PREFIX = import.meta.env.VITE_API_PREFIX || "/api/v1";
 const PUBLIC_APP_BASE =
   import.meta.env.VITE_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "");
+const AUTH_TOKEN_KEY = "flashdrop_auth_token";
+const AUTH_SELLER_KEY = "flashdrop_auth_seller";
 
 export const apiUrl = (path: string) => `${BASE}${PREFIX}${path.startsWith("/") ? path : `/${path}`}`;
 export const buyerCheckoutUrl = (slug: string) =>
   `${PUBLIC_APP_BASE}/buy/${encodeURIComponent(slug)}`;
+export const liveWallUrl = (slug: string) =>
+  `${PUBLIC_APP_BASE}/wall/${encodeURIComponent(slug)}`;
 
 export type DropState =
   | "draft"
@@ -68,18 +72,81 @@ export type GeneratePreviewResponse = {
   currency: string;
 };
 
+export type SellerPublic = {
+  id: string;
+  email: string;
+  display_name: string;
+  created_at: string;
+};
+
+export type AuthResponse = {
+  access_token: string;
+  token_type: "bearer";
+  seller: SellerPublic;
+};
+
 class ApiError extends Error {
   constructor(public status: number, message: string, public body?: unknown) {
     super(message);
   }
 }
 
+function apiErrorMessage(status: number, body: unknown, fallback: string): string {
+  if (typeof body === "string" && body.trim()) return body;
+  if (body && typeof body === "object") {
+    const detail = (body as { detail?: unknown }).detail;
+    if (typeof detail === "string" && detail.trim()) return detail;
+    if (Array.isArray(detail) && detail.length > 0) {
+      const first = detail[0] as { msg?: unknown; loc?: unknown };
+      const msg = typeof first?.msg === "string" ? first.msg : fallback;
+      const loc = Array.isArray(first?.loc) ? first.loc.slice(1).join(".") : "";
+      return loc ? `${loc}: ${msg}` : msg;
+    }
+  }
+  return `${fallback} (${status})`;
+}
+
+export function getAccessToken(): string {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem(AUTH_TOKEN_KEY) ?? "";
+}
+
+export function getStoredSeller(): SellerPublic | null {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem(AUTH_SELLER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as SellerPublic;
+  } catch {
+    return null;
+  }
+}
+
+export function persistAuth(auth: AuthResponse): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(AUTH_TOKEN_KEY, auth.access_token);
+  localStorage.setItem(AUTH_SELLER_KEY, JSON.stringify(auth.seller));
+}
+
+export function persistSeller(seller: SellerPublic): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(AUTH_SELLER_KEY, JSON.stringify(seller));
+}
+
+export function clearAuth(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  localStorage.removeItem(AUTH_SELLER_KEY);
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const accessToken = getAccessToken();
   const res = await fetch(apiUrl(path), {
     ...init,
     headers: {
       "ngrok-skip-browser-warning": "true",
       ...(init?.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...init?.headers,
     },
   });
@@ -91,13 +158,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // keep raw text body
     }
-    throw new ApiError(res.status, `${init?.method ?? "GET"} ${path} -> ${res.status}`, body);
+    throw new ApiError(
+      res.status,
+      apiErrorMessage(res.status, body, `${init?.method ?? "GET"} ${path} failed`),
+      body,
+    );
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
 export const api = {
+  registerSeller: (payload: { email: string; display_name: string; password: string }): Promise<AuthResponse> =>
+    request<AuthResponse>("/auth/register", { method: "POST", body: JSON.stringify(payload) }),
+
+  loginSeller: (payload: { email: string; password: string }): Promise<AuthResponse> =>
+    request<AuthResponse>("/auth/login", { method: "POST", body: JSON.stringify(payload) }),
+
+  getMe: (): Promise<SellerPublic> =>
+    request<SellerPublic>("/auth/me"),
+
   uploadMedia: (file: File | Blob, filename?: string): Promise<MediaUploadResponse> => {
     const form = new FormData();
     form.append("file", file, filename);
@@ -118,7 +198,6 @@ export const api = {
     currency?: string;
     inventory: number;
     media_url?: string | null;
-    seller_id?: string;
   }): Promise<DropDetail> =>
     request<DropDetail>("/drops", { method: "POST", body: JSON.stringify(payload) }),
 

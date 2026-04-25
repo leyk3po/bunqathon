@@ -30,6 +30,7 @@ def get_database_url() -> str:
 
 def register_models() -> None:
     # Import domain models so tables register on Base.metadata.
+    from app.auth import models as _auth_models  # noqa: F401
     from app.drops import models as _drops_models  # noqa: F401
 
 

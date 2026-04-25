@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Box, Flex, Grid, Text, Textarea } from "@chakra-ui/react";
-import { api, buyerCheckoutUrl, centsFromEuros, type DropState } from "../api";
+import { api, buyerCheckoutUrl, centsFromEuros, liveWallUrl, type DropState } from "../api";
 import { DARK, INK_FG, CARD, SURFACE, BORDER, TEXT, MUTED, FONT } from "../theme/tokens";
 import { BunqQrPanel } from "./BunqQrPanel";
 import type { Listing } from "./ListingCard";
@@ -194,6 +194,29 @@ export function EditModal({
                 price={listing.price}
                 bunqUrl={listing.bunqTabUrl}
               />
+            </Box>
+          )}
+
+          {listing.bunqTabUrl && (
+            <Box
+              as="button"
+              w="full"
+              h="40px"
+              mb="12px"
+              bg="rgba(0,0,0,0.88)"
+              color="white"
+              borderRadius="10px"
+              fontFamily={FONT}
+              fontSize="13px"
+              fontWeight="600"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              cursor="pointer"
+              border="none"
+              onClick={() => window.open(liveWallUrl(listing.slug), "_blank", "noopener,noreferrer")}
+            >
+              Open live wall
             </Box>
           )}
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
+from app.auth.models import Seller
+from app.auth.service import get_current_seller, get_optional_current_seller
 from app.core.database import get_db
 from app.drops import service
 from app.drops.models import Drop, DropState
@@ -24,6 +26,8 @@ router = APIRouter(prefix="/drops", tags=["drops"])
 def _translate(exc: service.DropError) -> HTTPException:
     if isinstance(exc, service.DropNotFound):
         return HTTPException(status.HTTP_404_NOT_FOUND, str(exc))
+    if isinstance(exc, service.DropForbidden):
+        return HTTPException(status.HTTP_403_FORBIDDEN, str(exc))
     if isinstance(exc, service.DropConflict):
         return HTTPException(status.HTTP_409_CONFLICT, str(exc))
     if isinstance(exc, service.DropInvalid):
@@ -48,9 +52,13 @@ def generate_preview(payload: GeneratePreviewRequest) -> GeneratePreviewResponse
 
 
 @router.post("", response_model=DropDetail, status_code=status.HTTP_201_CREATED)
-def create_drop(payload: DropCreate, db: Session = Depends(get_db)) -> Drop:
+def create_drop(
+    payload: DropCreate,
+    db: Session = Depends(get_db),
+    current_seller: Seller = Depends(get_current_seller),
+) -> Drop:
     try:
-        return service.create_drop(db, payload)
+        return service.create_drop(db, payload.model_copy(update={"seller_id": current_seller.id}))
     except service.DropError as exc:
         raise _translate(exc) from exc
 
@@ -62,12 +70,13 @@ def list_drops(
     status_filter: list[DropState] | None = Query(default=None, alias="status"),
     seller_id: str | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
+    current_seller: Seller | None = Depends(get_optional_current_seller),
 ) -> list[Drop]:
-    if state_filter is not None and status_filter is not None and set(state_filter) != set(status_filter):
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            "state and status query parameters must match when both are provided",
-        )
+    if seller_id is not None:
+        if current_seller is None:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Authentication required to filter by seller")
+        if current_seller.id != seller_id:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot list drops for another seller")
     return service.list_drops(
         db,
         states=status_filter or state_filter,
@@ -97,24 +106,40 @@ def get_drop(slug: str, db: Session = Depends(get_db)) -> Drop:
 
 
 @router.patch("/{drop_id}", response_model=DropDetail)
-def update_drop(drop_id: str, payload: DropUpdate, db: Session = Depends(get_db)) -> Drop:
+def update_drop(
+    drop_id: str,
+    payload: DropUpdate,
+    db: Session = Depends(get_db),
+    current_seller: Seller = Depends(get_current_seller),
+) -> Drop:
     try:
+        service.ensure_owner(service.get_by_id(db, drop_id), current_seller.id)
         return service.update_drop(db, drop_id, payload)
     except service.DropError as exc:
         raise _translate(exc) from exc
 
 
 @router.post("/{drop_id}/review", response_model=DropDetail)
-def move_drop_to_review(drop_id: str, db: Session = Depends(get_db)) -> Drop:
+def move_drop_to_review(
+    drop_id: str,
+    db: Session = Depends(get_db),
+    current_seller: Seller = Depends(get_current_seller),
+) -> Drop:
     try:
+        service.ensure_owner(service.get_by_id(db, drop_id), current_seller.id)
         return service.move_drop_to_review(db, drop_id)
     except service.DropError as exc:
         raise _translate(exc) from exc
 
 
 @router.post("/{drop_id}/publish", response_model=DropDetail)
-def publish_drop(drop_id: str, db: Session = Depends(get_db)) -> Drop:
+def publish_drop(
+    drop_id: str,
+    db: Session = Depends(get_db),
+    current_seller: Seller = Depends(get_current_seller),
+) -> Drop:
     try:
+        service.ensure_owner(service.get_by_id(db, drop_id), current_seller.id)
         return service.publish_drop(db, drop_id)
     except bunq.BunqConfigurationError as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
@@ -133,24 +158,39 @@ def mock_payment(drop_id: str, db: Session = Depends(get_db)) -> Drop:
 
 
 @router.post("/{drop_id}/pause", response_model=DropDetail)
-def pause_drop(drop_id: str, db: Session = Depends(get_db)) -> Drop:
+def pause_drop(
+    drop_id: str,
+    db: Session = Depends(get_db),
+    current_seller: Seller = Depends(get_current_seller),
+) -> Drop:
     try:
+        service.ensure_owner(service.get_by_id(db, drop_id), current_seller.id)
         return service.pause_drop(db, drop_id)
     except service.DropError as exc:
         raise _translate(exc) from exc
 
 
 @router.post("/{drop_id}/resume", response_model=DropDetail)
-def resume_drop(drop_id: str, db: Session = Depends(get_db)) -> Drop:
+def resume_drop(
+    drop_id: str,
+    db: Session = Depends(get_db),
+    current_seller: Seller = Depends(get_current_seller),
+) -> Drop:
     try:
+        service.ensure_owner(service.get_by_id(db, drop_id), current_seller.id)
         return service.resume_drop(db, drop_id)
     except service.DropError as exc:
         raise _translate(exc) from exc
 
 
 @router.post("/{drop_id}/archive", response_model=DropDetail)
-def archive_drop(drop_id: str, db: Session = Depends(get_db)) -> Drop:
+def archive_drop(
+    drop_id: str,
+    db: Session = Depends(get_db),
+    current_seller: Seller = Depends(get_current_seller),
+) -> Drop:
     try:
+        service.ensure_owner(service.get_by_id(db, drop_id), current_seller.id)
         return service.archive_drop(db, drop_id)
     except service.DropError as exc:
         raise _translate(exc) from exc
