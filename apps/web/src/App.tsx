@@ -3,6 +3,7 @@ import { Box, Flex, Grid, Image, Link, QrCode, SimpleGrid, Spinner, Text, Textar
 import { BrowserRouter, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { api, buyerCheckoutUrl, centsFromEuros, clearAuth, dataUrlToBlob, eurosFromCents, getStoredSeller, persistAuth, persistSeller, type DropDetail, type DropPublic, type DropState, type NotificationPublic, type SellerPublic } from "./api";
 import { G, DARK, INK_FG, BG, SURFACE, CARD, BORDER, TEXT, MUTED, FONT, PANEL } from "./theme/tokens";
+import HeroPage from "./components/HeroPage";
 import { BunqWordmark } from "./components/BunqWordmark";
 import { GlassCard } from "./components/GlassCard";
 import { ProductTileImage } from "./components/ProductTileImage";
@@ -1971,7 +1972,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route index element={<LoginPage />} />
+        <Route index element={<HeroPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/inspo" element={<Navigate replace to="/" />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/wall/:slug" element={<LiveWallPage />} />
         <Route path="/buy/:slug" element={<BuyerCheckoutPage />} />
