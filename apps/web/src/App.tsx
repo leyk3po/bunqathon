@@ -639,9 +639,15 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
   const [isGenerating, setGen]      = useState(false);
   const [isPosting, setPosting]     = useState(false);
   const [isRecording, setRecording] = useState(false);
+  const [voiceError, setVoiceError] = useState("");
 
   const hasPhoto    = Boolean(draft.imageUrl);
   const canGenerate = hasPhoto || draft.prompt.trim().length > 0;
+  const SpeechRecognitionCtor =
+    typeof window === "undefined"
+      ? null
+      : ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null);
+  const supportsDeviceTranscription = Boolean(SpeechRecognitionCtor);
 
   useEffect(() => {
     let mounted = true;
@@ -694,26 +700,40 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
   };
 
   const startVoice = async () => {
-    setRecording(true); audioChunksRef.current = [];
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (SR) {
-      const r = new SR(); r.continuous = true; r.interimResults = true;
+    setRecording(true);
+    setVoiceError("");
+    audioChunksRef.current = [];
+    if (SpeechRecognitionCtor) {
+      const r = new SpeechRecognitionCtor();
+      r.continuous = true;
+      r.interimResults = true;
+      r.lang = "en-US";
       r.onresult = (ev: any) => {
         const t = Array.from(ev.results as any[]).map((x: any) => x[0]?.transcript ?? "").join(" ").trim();
         if (t) setDraft((d) => ({ ...d, prompt: t }));
       };
+      r.onerror = () => {
+        setVoiceError("Device transcription failed. Type the pitch manually if needed.");
+      };
       r.start(); recognitionRef.current = r;
+    } else {
+      setVoiceError("Device transcription is not supported in this browser. You can still record audio and type the pitch.");
     }
     try {
       const stream = streamRef.current ?? await navigator.mediaDevices.getUserMedia({ audio: true });
       const rec = new MediaRecorder(stream);
       rec.ondataavailable = (ev) => { if (ev.data.size > 0) audioChunksRef.current.push(ev.data); };
       rec.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const mimeType = (rec.mimeType || audioChunksRef.current[0]?.type || "audio/webm").split(";", 1)[0];
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
         setDraft((d) => ({ ...d, audioUrl: blob.size > 0 ? URL.createObjectURL(blob) : d.audioUrl }));
       };
       rec.start(); recorderRef.current = rec;
-    } catch { /* mic unavailable */ }
+    } catch {
+      setRecording(false);
+      recognitionRef.current?.stop();
+      setVoiceError("Microphone unavailable on this device.");
+    }
   };
 
   const stopVoice = () => { recorderRef.current?.stop(); recognitionRef.current?.stop(); setRecording(false); };
@@ -891,6 +911,12 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
               <Box mt="10px">
                 <audio controls src={draft.audioUrl} style={{ width: "100%", borderRadius: "8px" }} />
               </Box>
+            )}
+
+            {(voiceError || !supportsDeviceTranscription) && (
+              <Text mt="10px" fontFamily={FONT} fontSize="12px" color={voiceError ? "#dc2626" : MUTED}>
+                {voiceError || "Device transcription is unavailable here. Type the pitch manually."}
+              </Text>
             )}
           </Box>
 

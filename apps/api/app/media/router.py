@@ -20,7 +20,7 @@ def _s3_client():
 
 @router.post("/upload", response_model=MediaUploadResponse, status_code=status.HTTP_201_CREATED)
 async def upload_media(file: UploadFile, request: Request) -> MediaUploadResponse:
-    content_type = (file.content_type or "").lower()
+    content_type = (file.content_type or "").split(";", 1)[0].strip().lower()
     if content_type not in ALLOWED_TYPES:
         raise HTTPException(
             status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
