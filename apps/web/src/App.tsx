@@ -118,7 +118,7 @@ function makeLocalDraft(d: DraftListing): DraftListing {
 type DraftListing = {
   imageUrl: string; prompt: string; title: string;
   description: string; price: string; stock: number;
-  category: string; audioUrl?: string;
+  category: string; audioUrl?: string; expiresDate?: string; expiresTime?: string;
 };
 
 const emptyDraft: DraftListing = {
@@ -751,6 +751,11 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
 
   const hasPhoto    = Boolean(draft.imageUrl);
   const canGenerate = hasPhoto || draft.prompt.trim().length > 0;
+  const expiryInvalid = Boolean(
+    draft.expiresDate && draft.expiresTime &&
+    new Date(`${draft.expiresDate}T${draft.expiresTime}`) <= new Date()
+  ) || Boolean(draft.expiresDate && !draft.expiresTime);
+  const canPublish  = canGenerate && !expiryInvalid;
   const SpeechRecognitionCtor =
     typeof window === "undefined"
       ? null
@@ -865,9 +870,12 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
     try {
       if (!capturedBlobRef.current && draft.imageUrl.startsWith("data:")) capturedBlobRef.current = await dataUrlToBlob(draft.imageUrl);
       const mediaUrl = await ensureUploaded();
-      const created  = await api.createDrop({ title: draft.title.trim() || titleFromPrompt(draft.prompt), description: draft.description.trim(), pitch: draft.prompt.trim() || null, price_cents: centsFromEuros(draft.price), inventory: Math.max(1, draft.stock), media_url: mediaUrl });
+      const expiresIso = (draft.expiresDate && draft.expiresTime)
+        ? new Date(`${draft.expiresDate}T${draft.expiresTime}`).toISOString()
+        : null;
+      const created  = await api.createDrop({ title: draft.title.trim() || titleFromPrompt(draft.prompt), description: draft.description.trim(), pitch: draft.prompt.trim() || null, price_cents: centsFromEuros(draft.price), inventory: Math.max(1, draft.stock), media_url: mediaUrl, expires_at: expiresIso });
       const live     = await api.publish(created.id);
-      onPost({ id: live.id, slug: live.slug, title: live.title, description: live.description, price: eurosFromCents(live.price_cents), stock: live.inventory, category: draft.category, imageUrl: draft.imageUrl, prompt: draft.prompt, status: "live", state: live.state, createdAt: nowTime(), audioUrl: draft.audioUrl, bunqTabUrl: live.bunq_tab_url });
+      onPost({ id: live.id, slug: live.slug, title: live.title, description: live.description, price: eurosFromCents(live.price_cents), stock: live.inventory, category: draft.category, imageUrl: draft.imageUrl, prompt: draft.prompt, status: "live", state: live.state, createdAt: nowTime(), audioUrl: draft.audioUrl, bunqTabUrl: live.bunq_tab_url, expiresAt: live.expires_at ?? undefined });
       onClose();
     } catch (err) {
       setApiError(err instanceof Error ? err.message : "Publish failed");
@@ -1097,6 +1105,39 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
               </Grid>
 
               <Box>
+                <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.06em" mb="6px">Ends at <Box as="span" fontWeight="400" textTransform="none" letterSpacing="normal">(optional)</Box></Text>
+                <Grid templateColumns="1fr 1fr" gap="8px">
+                  <Box
+                    as="input"
+                    type="date"
+                    {...inputBase as any}
+                    min={new Date().toISOString().slice(0, 10)}
+                    value={draft.expiresDate ?? ""}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setDraft((d) => ({ ...d, expiresDate: e.target.value || undefined }))
+                    }
+                    style={{ colorScheme: "light dark" }}
+                  />
+                  <Box
+                    as="input"
+                    type="time"
+                    {...inputBase as any}
+                    value={draft.expiresTime ?? ""}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setDraft((d) => ({ ...d, expiresTime: e.target.value || undefined }))
+                    }
+                    style={{ colorScheme: "light dark" }}
+                  />
+                </Grid>
+                {draft.expiresDate && !draft.expiresTime && (
+                  <Text fontFamily={FONT} fontSize="11px" color="#f59e0b" mt="4px">Pick a time too</Text>
+                )}
+                {draft.expiresDate && draft.expiresTime && new Date(`${draft.expiresDate}T${draft.expiresTime}`) <= new Date() && (
+                  <Text fontFamily={FONT} fontSize="11px" color="#dc2626" mt="4px">End time must be in the future</Text>
+                )}
+              </Box>
+
+              <Box>
                 <Text fontFamily={FONT} fontSize="11px" fontWeight="600" color={MUTED} textTransform="uppercase" letterSpacing="0.06em" mb="6px">Description</Text>
                 <Textarea
                   fontFamily={FONT} fontSize="14px" color={TEXT}
@@ -1119,9 +1160,9 @@ function CaptureOverlay({ onClose, onPost }: CaptureProps) {
               {...btnPrimary}
               h="48px" mt="auto"
               fontSize="14px"
-              opacity={isPosting || !canGenerate ? 0.6 : 1}
-              cursor={isPosting || !canGenerate ? "not-allowed" : "pointer"}
-              onClick={!isPosting && canGenerate ? postListing : undefined}
+              opacity={isPosting || !canPublish ? 0.6 : 1}
+              cursor={isPosting || !canPublish ? "not-allowed" : "pointer"}
+              onClick={!isPosting && canPublish ? postListing : undefined}
               gap="8px"
             >
               {isPosting && <Spinner size="xs" />}
@@ -1142,6 +1183,27 @@ type WallActivity = {
   tone: "sale" | "state" | "info";
 };
 
+function useWallCountdown(expiresAt?: string | null) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!expiresAt) return;
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [expiresAt]);
+}
+
+function fmtWallCountdown(expiresAt: string): string {
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (ms <= 0) return "Ended";
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
+  if (m > 0) return `${m}m ${String(sec).padStart(2, "0")}s`;
+  return `${sec}s`;
+}
+
 function LiveWallPage() {
   const { slug = "" } = useParams();
   const navigate = useNavigate();
@@ -1151,6 +1213,7 @@ function LiveWallPage() {
   const [activity, setActivity] = useState<WallActivity[]>([]);
   const [celebration, setCelebration] = useState<CelebrationData | null>(null);
   const dropRef = useRef<DropDetail | null>(null);
+  useWallCountdown(drop?.expires_at);
 
   useEffect(() => {
     dropRef.current = drop;
@@ -1443,11 +1506,12 @@ function LiveWallPage() {
                   {drop.description || "Instant storefront energy for a physical drop. Show the wall, let the room scan, and watch inventory move live."}
                 </Text>
 
-                <SimpleGrid columns={{ base: 2, md: 3 }} gap="12px" mt={{ base: "24px", xl: "28px" }}>
+                <SimpleGrid columns={{ base: 2, md: drop.expires_at ? 4 : 3 }} gap="12px" mt={{ base: "24px", xl: "28px" }}>
                   {[
                     { label: "Price", value: `€ ${eurosFromCents(drop.price_cents)}` },
                     { label: "Remaining", value: String(Math.max(0, drop.inventory)) },
                     { label: "Sold", value: String(drop.sold_count) },
+                    ...(drop.expires_at ? [{ label: "Ends in", value: fmtWallCountdown(drop.expires_at) }] : []),
                   ].map((item) => (
                     <Box
                       key={item.label}

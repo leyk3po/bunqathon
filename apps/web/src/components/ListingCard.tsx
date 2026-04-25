@@ -24,6 +24,7 @@ export type Listing = {
   createdAt: string;
   audioUrl?: string;
   bunqTabUrl?: string | null;
+  expiresAt?: string;
 };
 
 function listingStatusFromDropState(state: DropState | undefined): ListingStatus {
@@ -35,6 +36,28 @@ function listingStatusFromDropState(state: DropState | undefined): ListingStatus
 function fmt(price: string) {
   const n = Number(price);
   return `€ ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
+}
+
+function fmtCountdown(expiresAt: string): string {
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (ms <= 0) return "Ended";
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+
+function useCountdown(expiresAt?: string) {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!expiresAt) return;
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [expiresAt]);
+  return tick;
 }
 
 export function ListingCard({
@@ -51,6 +74,7 @@ export function ListingCard({
   onCelebrate: (d: CelebrationData) => void;
 }) {
   const [copied, setCopied] = useState(false);
+  useCountdown(listing.expiresAt);
 
   useEffect(() => {
     if (!listing.slug || listing.status !== "live") return;
@@ -273,6 +297,11 @@ export function ListingCard({
           <Text fontFamily={FONT} fontSize="12px" color={MUTED}>
             {listing.stock} in stock · {listing.createdAt}
           </Text>
+          {listing.expiresAt && listing.state === "live" && (
+            <Text fontFamily={FONT} fontSize="12px" fontWeight="600" color={fmtCountdown(listing.expiresAt) === "Ended" ? "#dc2626" : "#f59e0b"}>
+              ⏱ {fmtCountdown(listing.expiresAt)}
+            </Text>
+          )}
         </Flex>
 
         {listing.bunqTabUrl && (

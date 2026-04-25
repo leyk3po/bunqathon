@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import secrets
+from datetime import timedelta
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -79,6 +80,8 @@ def create_drop(db: Session, payload: DropCreate) -> Drop:
         inventory=payload.inventory,
         media_url=payload.media_url,
         state=DropState.draft,
+        duration_minutes=payload.duration_minutes,
+        expires_at=payload.expires_at,
     )
     db.add(drop)
     try:
@@ -191,6 +194,9 @@ def publish_drop(db: Session, drop_id: str) -> Drop:
     drop.bunq_tab_url = tab.share_url
     drop.bunq_tab_uuid = tab.uuid
     drop.bunq_tab_reference = tab.payment_reference
+    if drop.expires_at is None and drop.duration_minutes:
+        from app.drops.models import _utcnow
+        drop.expires_at = _utcnow() + timedelta(minutes=drop.duration_minutes)
     record_event(
         db,
         event_type="drop.published",

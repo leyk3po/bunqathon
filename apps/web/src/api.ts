@@ -42,6 +42,8 @@ export type DropPublic = {
   media_url: string | null;
   bunq_tab_url: string | null;
   state: DropState;
+  duration_minutes: number | null;
+  expires_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -193,6 +195,7 @@ export const api = {
     currency?: string;
     inventory: number;
     media_url?: string | null;
+    expires_at?: string | null;
   }): Promise<DropDetail> =>
     request<DropDetail>("/drops", { method: "POST", body: JSON.stringify(payload) }),
 
