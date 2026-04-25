@@ -261,7 +261,7 @@ def mock_payment_for_drop(db: Session, drop_id: str, amount_cents: int | None = 
         reference=drop.bunq_tab_reference,
         new_status=PaymentStatus.paid,
         amount_cents=paid_cents,
-        webhook_event_id=f"sandbox-mock:{drop.id}:{drop.sold_count + 1}",
+        webhook_event_id=f"sandbox-mock:{drop.id}:{secrets.token_hex(6)}",
         webhook_payload={
             "source": "sandbox_mock",
             "reference": drop.bunq_tab_reference,
