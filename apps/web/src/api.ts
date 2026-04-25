@@ -235,8 +235,11 @@ export const api = {
   publish: (id: string): Promise<DropDetail> =>
     request<DropDetail>(`/drops/${encodeURIComponent(id)}/publish`, { method: "POST" }),
 
-  mockPayment: (id: string): Promise<DropDetail> =>
-    request<DropDetail>(`/drops/${encodeURIComponent(id)}/mock-payment`, { method: "POST" }),
+  mockPayment: (id: string, amount_cents?: number | null): Promise<DropDetail> =>
+    request<DropDetail>(`/drops/${encodeURIComponent(id)}/mock-payment`, {
+      method: "POST",
+      body: JSON.stringify(amount_cents != null ? { amount_cents } : {}),
+    }),
 
   haggle: (
     slug: string,

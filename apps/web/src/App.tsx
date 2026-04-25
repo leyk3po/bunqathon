@@ -1806,8 +1806,12 @@ function BuyerCheckoutPage() {
     setPaying(true);
     setError("");
     try {
-      await api.mockPayment(drop.id);
-      navigate(`/buy/${encodeURIComponent(drop.slug)}/success`, { replace: true });
+      const overrideCents = haggleCents != null && haggleCents !== drop.price_cents ? haggleCents : null;
+      await api.mockPayment(drop.id, overrideCents);
+      const successUrl = overrideCents != null
+        ? `/buy/${encodeURIComponent(drop.slug)}/success?paid=${overrideCents}`
+        : `/buy/${encodeURIComponent(drop.slug)}/success`;
+      navigate(successUrl, { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Payment failed");
       setPaying(false);
@@ -1959,10 +1963,16 @@ function BuyerCheckoutPage() {
 function BuyerSuccessPage() {
   const { slug = "" } = useParams();
   const [drop, setDrop] = useState<DropDetail | null>(null);
+  const paidParam = typeof window !== "undefined"
+    ? Number(new URLSearchParams(window.location.search).get("paid") || "")
+    : NaN;
+  const paidCents = Number.isFinite(paidParam) && paidParam > 0 ? paidParam : null;
 
   useEffect(() => {
     api.getDrop(slug).then(setDrop).catch(() => undefined);
   }, [slug]);
+
+  const wasHaggled = paidCents != null && drop != null && paidCents !== drop.price_cents;
 
   return (
     <Flex minH="100dvh" bg={BG} align="center" justify="center" p={{ base: 4, md: 8 }}>
@@ -1990,9 +2000,21 @@ function BuyerSuccessPage() {
           {drop ? `${drop.title} was marked as paid and the seller view should now be updated.` : "The seller dashboard should now reflect the payment."}
         </Text>
         {drop && (
-          <Text fontFamily={FONT} fontSize="22px" fontWeight="700" color={TEXT} mt="20px">
-            € {eurosFromCents(drop.price_cents)}
-          </Text>
+          <Flex align="baseline" gap="10px" mt="20px" wrap="wrap">
+            <Text fontFamily={FONT} fontSize="26px" fontWeight="800" color={TEXT}>
+              € {eurosFromCents(paidCents ?? drop.price_cents)}
+            </Text>
+            {wasHaggled && (
+              <>
+                <Text fontFamily={FONT} fontSize="14px" color={MUTED} textDecoration="line-through">
+                  € {eurosFromCents(drop.price_cents)}
+                </Text>
+                <Box bg={G} color="black" fontFamily={FONT} fontSize="10px" fontWeight="800" letterSpacing="0.16em" textTransform="uppercase" px="6px" py="3px" borderRadius="4px">
+                  Haggled
+                </Box>
+              </>
+            )}
+          </Flex>
         )}
       </Box>
     </Flex>

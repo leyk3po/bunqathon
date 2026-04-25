@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { api, eurosFromCents } from "../api";
-import { BORDER, FONT, G, MUTED, TEXT } from "../theme/tokens";
+import { BORDER, CARD, DARK, FONT, G, INK_FG, MUTED, SURFACE, TEXT } from "../theme/tokens";
 
 type Turn = { role: "user" | "assistant"; text: string };
 
@@ -132,14 +132,13 @@ export function HagglePanel({
 
   return (
     <Box
-      bg="rgba(255,255,255,0.6)"
+      bg={CARD}
       border="1px solid"
       borderColor={BORDER}
       borderRadius="18px"
       overflow="hidden"
       position="relative"
-      style={{ backdropFilter: "blur(14px) saturate(160%)" }}
-      boxShadow="0 8px 32px -16px rgba(0,0,0,0.18)"
+      boxShadow="0 12px 36px -18px rgba(0,0,0,0.24), 0 2px 6px rgba(0,0,0,0.06)"
     >
       {/* Floating emoji burst layer */}
       <Box position="absolute" inset="0" pointerEvents="none" overflow="hidden" zIndex={3}>
@@ -239,10 +238,10 @@ export function HagglePanel({
             )}
             <Box
               maxW="78%"
-              bg={t.role === "user" ? TEXT : "rgba(255,255,255,0.92)"}
-              color={t.role === "user" ? "white" : TEXT}
-              border={t.role === "user" ? "none" : "1px solid"}
-              borderColor={BORDER}
+              bg={t.role === "user" ? DARK : SURFACE}
+              color={t.role === "user" ? INK_FG : TEXT}
+              border="1px solid"
+              borderColor={t.role === "user" ? DARK : BORDER}
               borderRadius={t.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px"}
               px="14px"
               py="10px"
@@ -263,7 +262,7 @@ export function HagglePanel({
               🤖
             </Box>
             <Box
-              bg="rgba(255,255,255,0.92)"
+              bg={SURFACE}
               border="1px solid"
               borderColor={BORDER}
               borderRadius="16px 16px 16px 4px"
@@ -294,7 +293,7 @@ export function HagglePanel({
           align="center"
           px="14px"
           py="12px"
-          bg={dealCents != null ? G : "rgba(0,0,0,0.04)"}
+          bg={dealCents != null ? G : SURFACE}
           color={dealCents != null ? "black" : TEXT}
           borderTop="1px solid"
           borderColor={BORDER}
@@ -322,22 +321,23 @@ export function HagglePanel({
           fontFamily={FONT}
           fontSize="14px"
           color={TEXT}
-          bg="white"
+          bg={SURFACE}
           border="1px solid"
           borderColor={BORDER}
           borderRadius="22px"
           {...{ placeholder: "type your offer…", value: draft, disabled: pending } as any}
           onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDraft(e.target.value)}
           onKeyDown={(e: React.KeyboardEvent) => e.key === "Enter" && send()}
-          _focus={{ outline: "none", borderColor: TEXT }}
+          _focus={{ outline: "none", borderColor: TEXT, bg: CARD }}
+          _placeholder={{ color: MUTED }}
         />
         <Box
           as="button"
           onClick={send}
           h="44px"
           px="20px"
-          bg={TEXT}
-          color="white"
+          bg={DARK}
+          color={INK_FG}
           border="none"
           borderRadius="22px"
           fontFamily={FONT}

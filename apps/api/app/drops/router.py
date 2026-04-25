@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.auth.models import Seller
@@ -158,10 +159,22 @@ def haggle_with_drop(slug: str, payload: HaggleRequest, db: Session = Depends(ge
     return HaggleResponse(reply=result.reply, offer_cents=result.offer_cents, deal_cents=result.deal_cents)
 
 
+class MockPaymentRequest(BaseModel):
+    amount_cents: int | None = Field(default=None, ge=1)
+
+
 @router.post("/{drop_id}/mock-payment", response_model=DropDetail)
-def mock_payment(drop_id: str, db: Session = Depends(get_db)) -> Drop:
+def mock_payment(
+    drop_id: str,
+    payload: MockPaymentRequest | None = None,
+    db: Session = Depends(get_db),
+) -> Drop:
     try:
-        return service.mock_payment_for_drop(db, drop_id)
+        return service.mock_payment_for_drop(
+            db,
+            drop_id,
+            amount_cents=payload.amount_cents if payload else None,
+        )
     except service.DropError as exc:
         raise _translate(exc) from exc
 
