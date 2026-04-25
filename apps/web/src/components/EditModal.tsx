@@ -56,12 +56,12 @@ export function EditModal({
     >
       <Card.Root borderRadius="28px" maxW="560px" w="full" onClick={(e) => e.stopPropagation()}>
         <Card.Body p={6}>
-          <Flex align="center" justify="space-between" mb={5}>
-            <Box>
+          <Flex align="center" justify="space-between" mb={5} gap={3}>
+            <Box flex={1} minW={0}>
               <Badge bg={BUNQ_GREEN} color="black" fontWeight="bold" borderRadius="8px" px={2} mb={2}>Edit listing</Badge>
-              <Heading size="lg">{listing.title}</Heading>
+              <Heading size="lg" lineClamp={2}>{listing.title}</Heading>
             </Box>
-            <Button colorPalette="gray" onClick={onClose} variant="ghost" size="sm">✕</Button>
+            <Button flexShrink={0} colorPalette="gray" onClick={onClose} variant="ghost" size="sm" px={2}>✕</Button>
           </Flex>
 
           {listing.bunqTabUrl && (
@@ -96,6 +96,7 @@ export function EditModal({
           <HStack mt={5} gap={3}>
             <Button
               flex={1}
+              minW={0}
               borderRadius="14px"
               bg={BUNQ_GREEN}
               color="black"
@@ -107,7 +108,14 @@ export function EditModal({
             >
               Save changes
             </Button>
-            <Button flex={0} borderRadius="14px" variant="outline" onClick={onClose} size="lg">
+            <Button
+              flexShrink={0}
+              px={6}
+              borderRadius="14px"
+              variant="outline"
+              onClick={onClose}
+              size="lg"
+            >
               Cancel
             </Button>
           </HStack>

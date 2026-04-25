@@ -244,21 +244,52 @@ function DashboardPage() {
     <Box bg={CREAM} minH="100dvh" pb="120px">
       {/* Top nav */}
       <Box bg={BUNQ_DARK} color="white" px={{ base: 5, md: 10 }} py={5}>
-        <Flex align="center" justify="space-between" maxW="1180px" mx="auto">
-          <HStack gap={3}>
-            <BunqWordmark subtitle="FlashDrop" />
+        <Flex align="center" justify="space-between" maxW="1180px" mx="auto" gap={3}>
+          {/* Left: logo + seller */}
+          <HStack gap={2} minW={0} flex={1}>
+            <Box flexShrink={0}>
+              <BunqWordmark subtitle="FlashDrop" />
+            </Box>
             {sellerId && (
-              <Badge bg="whiteAlpha.200" color="whiteAlpha.700" borderRadius="8px" px={2} fontWeight="medium">
+              <Badge
+                display={{ base: "none", sm: "block" }}
+                bg="whiteAlpha.200"
+                color="whiteAlpha.700"
+                borderRadius="8px"
+                px={2}
+                fontWeight="medium"
+                maxW="160px"
+                overflow="hidden"
+                textOverflow="ellipsis"
+                whiteSpace="nowrap"
+              >
                 {sellerId}
               </Badge>
             )}
           </HStack>
-          <HStack gap={3}>
-            <Badge bg={BUNQ_GREEN} color="black" borderRadius="8px" px={2} fontWeight="bold" fontSize="xs">
+          {/* Right: status + nav */}
+          <HStack gap={2} flexShrink={0}>
+            <Badge
+              display={{ base: "none", md: "flex" }}
+              bg={BUNQ_GREEN}
+              color="black"
+              borderRadius="8px"
+              px={2}
+              fontWeight="bold"
+              fontSize="xs"
+            >
               bunq connected
             </Badge>
-            <Button size="xs" variant="ghost" color="whiteAlpha.500" onClick={() => navigate("/")} _hover={{ color: "white" }}>
-              Switch seller
+            <Button
+              size="xs"
+              variant="ghost"
+              color="whiteAlpha.500"
+              onClick={() => navigate("/")}
+              _hover={{ color: "white" }}
+              px={2}
+            >
+              <Text display={{ base: "none", sm: "inline" }}>Switch seller</Text>
+              <Text display={{ base: "inline", sm: "none" }}>← Exit</Text>
             </Button>
           </HStack>
         </Flex>
@@ -272,11 +303,11 @@ function DashboardPage() {
             { label: "In stock", value: stockCount, bg: "#f0fdf4", color: "#166534" },
             { label: "Sold", value: soldCount, bg: "#fef9ec", color: "#92400e" },
           ].map(({ label, value, bg, color }) => (
-            <Card.Root bg="white" borderRadius="20px" key={label} boxShadow="0 4px 16px rgba(0,0,0,0.05)">
-              <Card.Body p={5}>
-                <Text color="gray.400" fontSize="xs" fontWeight="bold" textTransform="uppercase" letterSpacing="0.05em">{label}</Text>
-                <Box bg={bg} display="inline-block" borderRadius="10px" mt={2} px={3} py={1}>
-                  <Heading color={color} size="2xl">{value}</Heading>
+            <Card.Root bg="white" borderRadius="20px" key={label} boxShadow="0 4px 16px rgba(0,0,0,0.05)" overflow="hidden">
+              <Card.Body p={{ base: 3, md: 5 }}>
+                <Text color="gray.400" fontSize="xs" fontWeight="bold" textTransform="uppercase" letterSpacing="0.05em" lineClamp={1}>{label}</Text>
+                <Box bg={bg} display="inline-block" borderRadius="10px" mt={2} px={{ base: 2, md: 3 }} py={1}>
+                  <Heading color={color} size={{ base: "xl", md: "2xl" }}>{value}</Heading>
                 </Box>
               </Card.Body>
             </Card.Root>
@@ -510,23 +541,25 @@ function CaptureOverlay({ sellerId, onClose, onPost }: CaptureProps) {
       <Card.Root borderRadius="28px" maxH="calc(100dvh - 24px)" maxW="1100px" overflow="auto" w="full">
         <Card.Body p={{ base: 4, md: 6 }}>
           {/* Header */}
-          <Flex align="center" justify="space-between" mb={5}>
-            <Box>
+          <Flex align="center" justify="space-between" mb={5} gap={4}>
+            <Box flex={1} minW={0}>
               <HStack gap={2} mb={2}>
                 <BunqWordmark />
                 <Badge
                   bg={stage === "capture" ? "#ffe4e6" : "#dcfce7"}
                   color={stage === "capture" ? "#be123c" : "#166534"}
-                  borderRadius="8px" px={2} fontWeight="bold"
+                  borderRadius="8px" px={2} fontWeight="bold" flexShrink={0}
                 >
-                  {stage === "capture" ? "Capture" : "Review & publish"}
+                  {stage === "capture" ? "Capture" : "Review"}
                 </Badge>
               </HStack>
-              <Heading size={{ base: "lg", md: "xl" }} color={BUNQ_DARK}>
+              <Heading size={{ base: "md", md: "xl" }} color={BUNQ_DARK} lineClamp={1}>
                 {stage === "capture" ? "Snap the item, pitch it" : "Review your listing"}
               </Heading>
             </Box>
-            <Button colorPalette="gray" onClick={onClose} variant="ghost" borderRadius="12px">✕ Close</Button>
+            <Button flexShrink={0} colorPalette="gray" onClick={onClose} variant="ghost" borderRadius="12px" px={3}>
+              ✕
+            </Button>
           </Flex>
 
           <Grid gap={5} templateColumns={{ base: "1fr", lg: "1fr 1fr" }}>
