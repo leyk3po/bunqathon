@@ -1,7 +1,7 @@
 """add drop_slug to notifications
 
-Revision ID: 20260425_0007
-Revises: 20260425_0006
+Revision ID: 20260425_0008
+Revises: 20260425_0007
 Create Date: 2026-04-25 14:00:00
 """
 
@@ -11,8 +11,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "20260425_0007"
-down_revision = "20260425_0006"
+revision = "20260425_0008"
+down_revision = "20260425_0007"
 branch_labels = None
 depends_on = None
 
