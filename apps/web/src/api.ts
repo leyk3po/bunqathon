@@ -62,6 +62,16 @@ export type MediaUploadResponse = {
   size: number;
 };
 
+export type NotificationPublic = {
+  id: string;
+  drop_id: string | null;
+  drop_title: string;
+  amount_cents: number;
+  currency: string;
+  read: boolean;
+  created_at: string;
+};
+
 export type GeneratePreviewResponse = {
   title: string;
   description: string;
@@ -232,6 +242,12 @@ export const api = {
     request<Record<string, unknown>[]>(`/drops/${encodeURIComponent(slug)}/events`),
 
   streamDrop: (slug: string): EventSource => new EventSource(apiUrl(`/drops/${encodeURIComponent(slug)}/stream`)),
+
+  listNotifications: (): Promise<NotificationPublic[]> =>
+    request<NotificationPublic[]>("/notifications"),
+
+  markNotificationsRead: (): Promise<void> =>
+    request<void>("/notifications/read", { method: "POST" }),
 };
 
 export { ApiError };

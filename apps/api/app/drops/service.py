@@ -343,6 +343,16 @@ def apply_payment_event(
         drop.inventory = max(0, drop.inventory - 1)
         drop.state = _sellable_state_for(drop)
         counted_sale = True
+        if drop.seller_id:
+            from app.notifications.service import create_notification
+            create_notification(
+                db,
+                seller_id=drop.seller_id,
+                drop_id=drop.id,
+                drop_title=drop.title,
+                amount_cents=amount_cents if amount_cents is not None else drop.price_cents,
+                currency=drop.currency,
+            )
 
     record_event(
         db,

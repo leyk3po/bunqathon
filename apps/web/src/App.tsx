@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Box, Flex, Grid, Image, Link, QrCode, SimpleGrid, Spinner, Text, Textarea } from "@chakra-ui/react";
 import { BrowserRouter, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
-import { api, buyerCheckoutUrl, centsFromEuros, clearAuth, dataUrlToBlob, eurosFromCents, getStoredSeller, persistAuth, persistSeller, type DropDetail, type DropPublic, type DropState, type SellerPublic } from "./api";
+import { api, buyerCheckoutUrl, centsFromEuros, clearAuth, dataUrlToBlob, eurosFromCents, getStoredSeller, persistAuth, persistSeller, type DropDetail, type DropPublic, type DropState, type NotificationPublic, type SellerPublic } from "./api";
 import { G, DARK, INK_FG, BG, SURFACE, CARD, BORDER, TEXT, MUTED, FONT, PANEL } from "./theme/tokens";
 import { BunqWordmark } from "./components/BunqWordmark";
 import { GlassCard } from "./components/GlassCard";
@@ -385,6 +385,18 @@ function LoginPage() {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
+type SaleNotification = { id: string; title: string; amount: string; time: string; read: boolean };
+
+function notifFromApi(n: NotificationPublic): SaleNotification {
+  return {
+    id: n.id,
+    title: n.drop_title,
+    amount: `€ ${(n.amount_cents / 100).toFixed(2)}`,
+    time: new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(n.created_at)),
+    read: n.read,
+  };
+}
+
 function DashboardPage() {
   const navigate                   = useNavigate();
   const { dark, toggle }           = useTheme();
@@ -397,8 +409,44 @@ function DashboardPage() {
   const [previewTarget, setPreviewTarget] = useState<Listing | null>(null);
   const [celebration, setCelebration] = useState<CelebrationData | null>(null);
   const [activeStatuses, setActiveStatuses] = useState<DropStatusFilter[]>([]);
+  const [notifications, setNotifications] = useState<SaleNotification[]>([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement | null>(null);
   const sellerId = seller?.id ?? "";
   const sellerName = seller?.display_name ?? "";
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const handleCelebrate = useCallback((d: CelebrationData) => {
+    setCelebration(d);
+    setNotifications((prev) => [
+      {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+        title: d.title,
+        amount: d.amount,
+        time: nowTime(),
+        read: false,
+      },
+      ...prev,
+    ].slice(0, 30));
+  }, []);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    api.markNotificationsRead().catch(() => {});
+  }, [notifOpen]);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [notifOpen]);
 
   const liveCount  = listings.filter((l) => l.status === "live").length;
   const stockCount = listings.reduce((t, l) => t + l.stock, 0);
@@ -442,6 +490,13 @@ function DashboardPage() {
   }, [activeStatuses, sellerId]);
 
   useEffect(() => { fetchDrops(); }, [fetchDrops]);
+
+  useEffect(() => {
+    if (!sellerId) return;
+    api.listNotifications()
+      .then((list) => setNotifications(list.map(notifFromApi)))
+      .catch(() => {});
+  }, [sellerId]);
 
   const updateListing = useCallback((id: string, u: Partial<Listing>) => {
     setListings((cur) =>
@@ -515,6 +570,100 @@ function DashboardPage() {
                 </Text>
               </Flex>
             )}
+
+            {/* Notification bell */}
+            <Box position="relative" ref={notifRef as React.RefObject<HTMLDivElement>}>
+              <Box
+                as="button"
+                onClick={() => setNotifOpen((o) => !o)}
+                w="32px" h="32px"
+                borderRadius="50%"
+                bg={SURFACE}
+                border="1px solid"
+                borderColor={BORDER}
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+                cursor="pointer"
+                flexShrink={0}
+                _hover={{ bg: BORDER }}
+                position="relative"
+                title="Notifications"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 22c1.1 0 2-.9 2-2h-4a2 2 0 0 0 2 2Zm6-6V11a6 6 0 0 0-5-5.91V4a1 1 0 1 0-2 0v1.09A6 6 0 0 0 6 11v5l-1.29 1.29A1 1 0 0 0 5.41 19H18.6a1 1 0 0 0 .7-1.71L18 16Z" fill="currentColor" />
+                </svg>
+                {unreadCount > 0 && (
+                  <Box
+                    position="absolute"
+                    top="-2px"
+                    right="-2px"
+                    w="14px"
+                    h="14px"
+                    borderRadius="50%"
+                    bg="#dc2626"
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                  >
+                    <Text fontFamily={FONT} fontSize="9px" fontWeight="700" color="white" lineHeight={1}>
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </Text>
+                  </Box>
+                )}
+              </Box>
+
+              {notifOpen && (
+                <Box
+                  position="absolute"
+                  top="calc(100% + 8px)"
+                  right={0}
+                  w="300px"
+                  bg={CARD}
+                  border="1px solid"
+                  borderColor={BORDER}
+                  borderRadius="12px"
+                  boxShadow="0 8px 32px rgba(0,0,0,0.16)"
+                  zIndex={50}
+                  overflow="hidden"
+                >
+                  <Box px="14px" py="10px" borderBottom="1px solid" borderColor={BORDER}>
+                    <Text fontFamily={FONT} fontSize="12px" fontWeight="700" color={TEXT} textTransform="uppercase" letterSpacing="0.06em">
+                      Sales
+                    </Text>
+                  </Box>
+                  {notifications.length === 0 ? (
+                    <Box px="14px" py="20px" textAlign="center">
+                      <Text fontFamily={FONT} fontSize="13px" color={MUTED}>No sales yet</Text>
+                    </Box>
+                  ) : (
+                    <Box maxH="320px" overflowY="auto">
+                      {notifications.map((n) => (
+                        <Box
+                          key={n.id}
+                          px="14px"
+                          py="10px"
+                          borderBottom="1px solid"
+                          borderColor={BORDER}
+                          bg={n.read ? "transparent" : SURFACE}
+                          _last={{ borderBottom: "none" }}
+                        >
+                          <Flex justify="space-between" align="center" mb="2px">
+                            <Text fontFamily={FONT} fontSize="13px" fontWeight="600" color={TEXT} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap" maxW="180px">
+                              {n.title}
+                            </Text>
+                            <Text fontFamily={FONT} fontSize="13px" fontWeight="700" color="#16a34a">
+                              {n.amount}
+                            </Text>
+                          </Flex>
+                          <Text fontFamily={FONT} fontSize="11px" color={MUTED}>{n.time}</Text>
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+              )}
+            </Box>
 
             <ThemeToggle dark={dark} toggle={toggle} />
 
@@ -664,7 +813,7 @@ function DashboardPage() {
                 onPreview={() => setPreviewTarget(l)}
                 onEdit={() => setEditTarget(l)}
                 onWall={() => navigate(`/wall/${l.slug}`)}
-                onCelebrate={setCelebration}
+                onCelebrate={handleCelebrate}
               />
             ))}
           </SimpleGrid>
