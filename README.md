@@ -38,4 +38,12 @@ Seller / Buyer → React App → FastAPI Backend → PostgreSQL / S3
 
 ---
 
+## Demo Video: 
+
+https://www.youtube.com/watch?v=tffgkQfe0x0
+
+## Devpost Submission: 
+
+https://devpost.com/software/flashdrop-4z6s0c
+
 *Built in 24 hours for bunq Multimodal Hackathon 7.0.*
